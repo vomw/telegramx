@@ -73,8 +73,8 @@ import java.util.List;
 import me.vkryl.android.AnimatorUtils;
 import me.vkryl.android.widget.FrameLayoutFix;
 import me.vkryl.core.lambda.CancellableRunnable;
-import me.vkryl.td.ChatId;
-import me.vkryl.td.Td;
+import tgx.td.ChatId;
+import tgx.td.Td;
 
 public class MediaBottomGalleryController extends MediaBottomBaseController<MediaBottomGalleryController.Arguments> implements Media.GalleryCallback, MediaGalleryAdapter.Callback, Menu, View.OnClickListener, MediaBottomGalleryBucketAdapter.Callback, MediaViewDelegate, MediaSelectDelegate, MediaSendDelegate {
   public static class Arguments {
@@ -245,6 +245,11 @@ public class MediaBottomGalleryController extends MediaBottomBaseController<Medi
 
   @Override
   public boolean allowSpoiler () {
+    return !ChatId.isSecret(getOutputChatId());
+  }
+
+  @Override
+  public boolean allowShowCaptionAboveMedia () {
     return !ChatId.isSecret(getOutputChatId());
   }
 
@@ -426,7 +431,7 @@ public class MediaBottomGalleryController extends MediaBottomBaseController<Medi
   }
 
   @Override
-  public boolean showExitWarning (boolean isExitingSelection) {
+  public boolean showExitWarning (boolean isExitingSelection, boolean commit) {
     List<ImageFile> selectedImages = adapter.getSelectedPhotosAndVideosAsList(false);
     if (selectedImages != null && !selectedImages.isEmpty()) {
       boolean hasChanges = false, hasCaptions = false;
@@ -437,11 +442,13 @@ public class MediaBottomGalleryController extends MediaBottomBaseController<Medi
           hasCaptions = true;
       }
       if (hasChanges || hasCaptions) {
-        int res = hasChanges && hasCaptions ? R.string.DiscardMediaHint3 : hasCaptions ? R.string.DiscardMediaHint2 : R.string.DiscardMediaHint;
-        int res2 = hasChanges && hasCaptions ? R.string.DiscardMediaMsg3 : hasCaptions ? R.string.DiscardMediaMsg2 : R.string.DiscardMediaMsg;
-        showUnsavedChangesPromptBeforeLeaving(Lang.getMarkdownString(this, res), Lang.getString(res2), () -> {
-          mediaLayout.onConfirmExit(isExitingSelection);
-        });
+        if (commit) {
+          int res = hasChanges && hasCaptions ? R.string.DiscardMediaHint3 : hasCaptions ? R.string.DiscardMediaHint2 : R.string.DiscardMediaHint;
+          int res2 = hasChanges && hasCaptions ? R.string.DiscardMediaMsg3 : hasCaptions ? R.string.DiscardMediaMsg2 : R.string.DiscardMediaMsg;
+          showUnsavedChangesPromptBeforeLeaving(Lang.getMarkdownString(this, res), Lang.getString(res2), () -> {
+            mediaLayout.onConfirmExit(isExitingSelection);
+          });
+        }
         return true;
       }
     }
@@ -541,7 +548,7 @@ public class MediaBottomGalleryController extends MediaBottomBaseController<Medi
   }
 
   @Override
-  public boolean sendSelectedItems (View view, ArrayList<ImageFile> images, TdApi.MessageSendOptions options, boolean disableMarkdown, boolean asFiles, boolean hasSpoiler) {
+  public boolean sendSelectedItems (View view, ArrayList<ImageFile> images, TdApi.MessageSendOptions options, boolean disableMarkdown, boolean asFiles, boolean showCaptionAboveMedia, boolean hasSpoiler) {
     // TODO delete other
     return mediaLayout.sendPhotosOrVideos(view, images, false, options, disableMarkdown, asFiles, true);
   }
@@ -559,6 +566,16 @@ public class MediaBottomGalleryController extends MediaBottomBaseController<Medi
   @Override
   public void onHideMediaStateChanged (boolean hideMedia) {
     mediaLayout.setNeedSpoiler(hideMedia);
+  }
+
+  @Override
+  public boolean showCaptionAboveMedia () {
+    return mediaLayout.showCaptionAboveMedia();
+  }
+
+  @Override
+  public void onShowCaptionAboveMediaStateChanged (boolean showCaptionAboveMedia) {
+    mediaLayout.setShowCaptionAboveMedia(showCaptionAboveMedia);
   }
 
   @Override
@@ -784,12 +801,14 @@ public class MediaBottomGalleryController extends MediaBottomBaseController<Medi
   }
 
   @Override
-  public boolean onBackPressed (boolean fromTop) {
+  public boolean performOnBackPressed (boolean fromTop, boolean commit) {
     if (sectionsFactor != 0f) {
-      closeSections();
+      if (commit) {
+        closeSections();
+      }
       return true;
     }
-    return super.onBackPressed(fromTop);
+    return super.performOnBackPressed(fromTop, commit);
   }
 
   private @Nullable Media.GalleryBucket currentBucket;

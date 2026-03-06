@@ -33,7 +33,7 @@ import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
 
 import me.vkryl.core.StringUtils;
-import me.vkryl.td.Td;
+import tgx.td.Td;
 
 public class SetSenderControllerPage extends BottomSheetViewController.BottomSheetBaseRecyclerViewController<SetSenderController.Args> implements
         BottomSheetViewController.BottomSheetBaseControllerPage, Menu {
@@ -66,7 +66,12 @@ public class SetSenderControllerPage extends BottomSheetViewController.BottomShe
     headerView.setWillNotDraw(false);
     addThemeInvalidateListener(headerView);
     return headerView;
-  };
+  }
+
+  @Override
+  public boolean supportsBottomInset () {
+    return true;
+  }
 
   @Override
   protected void onCreateView (Context context, CustomRecyclerView recyclerView) {
@@ -347,9 +352,11 @@ public class SetSenderControllerPage extends BottomSheetViewController.BottomShe
   }
 
   @Override
-  public boolean onBackPressed (boolean fromTop) {
+  public boolean performOnBackPressed (boolean fromTop, boolean commit) {
     if (inSearchMode()) {
-      closeSearchMode(null);
+      if (commit) {
+        closeSearchMode(null);
+      }
       return true;
     }
     return false;

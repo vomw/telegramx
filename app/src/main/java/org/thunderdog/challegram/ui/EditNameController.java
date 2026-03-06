@@ -49,7 +49,7 @@ import java.util.List;
 import me.vkryl.android.text.CodePointCountFilter;
 import me.vkryl.android.widget.FrameLayoutFix;
 import me.vkryl.core.StringUtils;
-import me.vkryl.td.TdConstants;
+import tgx.td.TdConstants;
 
 public class EditNameController extends EditBaseController<EditNameController.Args> implements SettingsAdapter.TextChangeListener, Client.ResultHandler, TdlibCache.UserDataChangeListener, View.OnClickListener {
   @Retention(RetentionPolicy.SOURCE)
@@ -335,8 +335,13 @@ public class EditNameController extends EditBaseController<EditNameController.Ar
         case Mode.RENAME_CONTACT: {
           if (user != null) {
             setDoneInProgress(true);
-            TdApi.Contact contact = new TdApi.Contact(!StringUtils.isEmpty(knownPhoneNumber) ? knownPhoneNumber : user.phoneNumber, firstName, lastName, null, user.id);
-            tdlib.client().send(new TdApi.AddContact(contact, shareMyNumber != null && shareMyNumber.isSelected()), this);
+            TdApi.ImportedContact contact = new TdApi.ImportedContact(
+              !StringUtils.isEmpty(knownPhoneNumber) ? knownPhoneNumber : user.phoneNumber,
+              firstName, lastName,
+              null
+            );
+            boolean sharePhoneNumber = shareMyNumber != null && shareMyNumber.isSelected();
+            tdlib.client().send(new TdApi.AddContact(user.id, contact, sharePhoneNumber), this);
           }
           break;
         }
@@ -388,7 +393,8 @@ public class EditNameController extends EditBaseController<EditNameController.Ar
   }
 
   @Override
-  public void onTextChanged (int id, ListItem item, MaterialEditTextGroup v, String text) {
+  public void onTextChanged (int id, ListItem item, MaterialEditTextGroup v) {
+    String text = v.getText().toString();
     if (id == R.id.edit_first_name) {
       firstName.setStringValue(text);
       updateDoneState();

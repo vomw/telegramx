@@ -26,7 +26,7 @@ public interface ChatListener extends ForumTopicInfoListener {
   default void onChatRemovedFromList (long chatId, TdApi.ChatList chatList) { }
   default void onChatPermissionsChanged (long chatId, TdApi.ChatPermissions permissions) { }
   default void onChatTitleChanged (long chatId, String title) { }
-  default void onChatThemeChanged (long chatId, String themeName) { }
+  default void onChatThemeChanged (long chatId, TdApi.ChatTheme theme) { }
 
   default void onChatBackgroundChanged (long chatId, @Nullable TdApi.ChatBackground background) { }
   default void onChatAccentColorsChanged (long chatId,
@@ -46,7 +46,7 @@ public interface ChatListener extends ForumTopicInfoListener {
   default void onChatIsTranslatableChanged (long chatId, boolean isTranslatable) { }
   default void onChatBlockListChanged (long chatId, @Nullable TdApi.BlockList blockList) { }
   default void onChatOnlineMemberCountChanged (long chatId, int onlineMemberCount) { }
-  default void onChatMessageTtlSettingChanged (long chatId, int messageTtlSetting) { }
+  default void onChatMessageTtlSettingChanged (long chatId, int messageAutoDeleteTime) { }
   default void onChatActiveStoriesChanged (@NonNull TdApi.ChatActiveStories activeStories) { }
   default void onChatVideoChatChanged (long chatId, TdApi.VideoChat videoChat) { }
   default void onChatViewAsTopics (long chatId, boolean viewAsTopics) { }

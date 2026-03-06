@@ -31,13 +31,17 @@ public class Config {
   public static final boolean FOREGROUND_SYNC_ALWAYS_ENABLED = true; // Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE;
   public static final @Dimension(unit = Dimension.DP) int COMMENTS_BUBBLE_BUTTON_MIN_WIDTH = 200;
   public static final boolean SHOW_CHANNEL_POST_REPLY_INFO_IN_COMMENTS = true;
-  public static final boolean CHAT_FOLDERS_ENABLED = true;
   public static final boolean CHAT_FOLDERS_SMART_CHAT_DELETION_ENABLED = true;
   public static final boolean CHAT_FOLDERS_HIDE_BOTTOM_BAR_ON_SCROLL = true;
   public static final boolean CHAT_FOLDERS_APPEARANCE_IS_GLOBAL = true;
-  public static final boolean CHAT_FOLDERS_REDESIGN = true;
   public static final boolean RESTRICT_HIDING_MAIN_LIST = true;
   public static final boolean SEARCH_MESSAGES_ONLY_IN_SELECTED_FOLDER = BuildConfig.EXPERIMENTAL;
+  public static final boolean CHAT_FOLDERS_UNSET_DEFAULT_ICONS = false; // Until there's a fix on server
+  public static final boolean TEST_TDLIB_RESTARTS = BuildConfig.DEBUG;
+
+  public static final boolean TEST_MULTI_SPONSORED_MESSAGES = false;
+  public static final boolean TEST_NEW_FEATURES_PROMPTS = false;
+  public static final boolean ADJUST_STATUS_BAR_TO_AVOID_DISPLAY_CUTOUT = false;
 
   public static final boolean NEED_SILENT_BROADCAST = false;
 
@@ -49,6 +53,8 @@ public class Config {
 
   public static final boolean MODERN_IMAGE_DECODER_ENABLED = true;
   public static final boolean FORCE_SOFTWARE_IMAGE_DECODER = true;
+
+  public static final boolean WAIT_ANIMATIONS_BEFORE_START_VIDEO = true;
 
   // Allow stretch bounce in places where the glow looks ugly
   public static final boolean HAS_NICE_OVER_SCROLL_EFFECT = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S;
@@ -95,7 +101,6 @@ public class Config {
   public static final boolean DISABLE_SENDING_MEDIA_CACHE = false; // BuildConfig.DEBUG; // FIXME: TDLib
   public static final boolean WORKAROUND_NEED_MODIFY = true; // FIXME TDLib
 
-  public static final boolean USE_FULLSCREEN_NAVIGATION = true;
   public static final boolean USE_FULLSCREEN_NAVIGATION_CONTENT = false; // BuildConfig.DEBUG;
   public static final boolean USE_TRANSLUCENT_NAVIGATION = false; // Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT;
 
@@ -145,13 +150,17 @@ public class Config {
   public static final boolean CAMERA_ALLOW_SNAPSHOTS = false; // true;
   public static final boolean CAMERA_X_AVAILABLE = Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP;
 
+  public static final int MAX_COPY_TEXT_LINE_COUNT = 12;
+
   public static final boolean CROP_USE_REGION_READER = true;
   public static final boolean CROP_ENABLED = true;
   public static final boolean MODERN_VIDEO_TRANSCODING_ENABLED = Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP;
+  public static final boolean LEGACY_VIDEO_TRANSCODING_ENABLED = Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2 && BuildConfig.LEGACY_FLAVOR;
 
   public static final boolean IN_APP_BROWSER_AVAILABLE = Build.VERSION.SDK_INT >= Build.VERSION_CODES.ICE_CREAM_SANDWICH_MR1;
 
   public static final boolean VIDEO_PLAYER_AVAILABLE = Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN;
+  public static final boolean HLS_VIDEO_ENABLED = VIDEO_PLAYER_AVAILABLE;
 
   public static final boolean FORCE_TOUCH_ENABLED = true;
   public static final boolean HOLD_TO_PREVIEW_AVAILABLE = true;
@@ -162,7 +171,7 @@ public class Config {
 
   public static final boolean SLOW_VIDEO_SWITCH = Device.IS_SAMSUNG; // TODO make
 
-  public static final boolean ROUND_VIDEOS_PLAYBACK_SUPPORTED = Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN;
+  public static final boolean ROUND_VIDEOS_PLAYBACK_SUPPORTED = Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP;
   public static final boolean ROUND_VIDEOS_RECORD_SUPPORTED = Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2;
 
   public static final boolean DEBUG_CLIPPING = false;
@@ -243,12 +252,14 @@ public class Config {
   public static final int MINIMUM_CALL_CONTACTS_SUGGESTIONS = 3;
 
   public static final boolean USE_CUSTOM_NAVIGATION_COLOR = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O;
+  public static final boolean USE_TRANSPARENT_STATUS_BAR = BuildConfig.DEBUG;
+
+  public static final boolean EDGE_TO_EDGE_AVAILABLE = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R;
+  public static final boolean EDGE_TO_EDGE_CUSTOMIZABLE = EDGE_TO_EDGE_AVAILABLE && (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM || BuildConfig.TARGET_SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM);
 
   public static final boolean PREFER_RENDER_EXTENSIONS = true;
 
   public static final boolean NEED_ONLINE = true; // !BuildConfig.DEBUG;
-
-  public static final boolean USE_ICON_TABS = false;
 
   /* TODO: Missing Android API
    * TextUtils.CHAR_SEQUENCE_CREATOR doesn't support ImageSpan (or whatever alternative),
@@ -304,6 +315,8 @@ public class Config {
   public static final boolean USE_HARDWARE_PHOTO_VIEWER_CONFIG = false;
 
   public static final boolean REQUIRE_FIREBASE_SERVICES_FOR_SAFETYNET = false;
+
+  public static final boolean USE_INPUT_VIEW_CLIPPING_FIX = false;
 
   public static final int VOIP_CONNECTION_MIN_LAYER = 65;
   public static final boolean FORCE_DIRECT_TGVOIP = false;

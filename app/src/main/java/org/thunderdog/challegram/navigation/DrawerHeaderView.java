@@ -40,7 +40,6 @@ import org.thunderdog.challegram.telegram.TGLegacyManager;
 import org.thunderdog.challegram.telegram.TdlibAccount;
 import org.thunderdog.challegram.telegram.TdlibBadgeCounter;
 import org.thunderdog.challegram.telegram.TdlibManager;
-import org.thunderdog.challegram.telegram.TdlibUi;
 import org.thunderdog.challegram.theme.ColorId;
 import org.thunderdog.challegram.theme.Theme;
 import org.thunderdog.challegram.tool.Drawables;
@@ -52,7 +51,6 @@ import org.thunderdog.challegram.unsorted.Settings;
 import org.thunderdog.challegram.util.EmojiStatusHelper;
 import org.thunderdog.challegram.util.text.Text;
 import org.thunderdog.challegram.util.text.TextColorSet;
-import org.thunderdog.challegram.util.text.TextPart;
 import org.thunderdog.challegram.widget.ExpanderView;
 
 import me.vkryl.android.AnimatorUtils;
@@ -114,7 +112,7 @@ public class DrawerHeaderView extends View implements Destroyable, GlobalAccount
     });
   }
 
-  public boolean onEmojiStatusClick (View v, Text text, TextPart part, @Nullable TdlibUi.UrlOpenParameters openParameters, EmojiStatusHelper emojiStatusHelper) {
+  public boolean onEmojiStatusClick (View v, EmojiStatusHelper emojiStatusHelper) {
     int[] pos = new int[2];
     getLocationOnScreen(pos);
     EmojiStatusSelectorEmojiPage.Wrapper c = new EmojiStatusSelectorEmojiPage.Wrapper(parent.context, currentAccount.tdlib(), parent, new EmojiStatusSelectorEmojiPage.AnimationsEmojiStatusSetDelegate() {
@@ -377,7 +375,7 @@ public class DrawerHeaderView extends View implements Destroyable, GlobalAccount
     public static final int DRAW_MODE_IMAGES = 1;
     public static final int DRAW_MODE_TEXTS = 2;
 
-    public void draw (Canvas c, DoubleImageReceiver receiver, int viewWidth, int viewHeight, float factor, float avatarFactor, float avatarAlphaFactor, int drawMode, boolean rtl, int equalFlags, boolean drawEqual) {
+    public void draw (DrawerHeaderView view, Canvas c, DoubleImageReceiver receiver, int viewWidth, int viewHeight, float factor, float avatarFactor, float avatarAlphaFactor, int drawMode, boolean rtl, int equalFlags, boolean drawEqual) {
       int contentLeft = contentLeft();
       final int startRadius = Screen.dp(32f);
       final int startCx = rtl ? viewWidth - contentLeft - startRadius : contentLeft + startRadius;
@@ -435,13 +433,14 @@ public class DrawerHeaderView extends View implements Destroyable, GlobalAccount
           }
         }
       }
+      int leftPadding = view.getPaddingLeft();
       if (drawMode == DRAW_MODE_TEXTS || drawMode == DRAW_MODE_REGULAR) {
         this.lastAvatarFactor = avatarFactor;
         if (trimmedName != null) {
-          trimmedName.draw(c, contentLeft, contentLeft + trimmedName.getWidth(), 0,  Screen.dp(97f) + HeaderView.getTopOffset(), null, (equalFlags & FLAG_EQUAL_NAMES) != 0 ? (drawEqual ? 1f : 0f) : factor);
+          trimmedName.draw(c, contentLeft + leftPadding, contentLeft + leftPadding + trimmedName.getWidth(), 0,  Screen.dp(97f) + HeaderView.getTopOffset(), null, (equalFlags & FLAG_EQUAL_NAMES) != 0 ? (drawEqual ? 1f : 0f) : factor);
         }
         if (trimmedPhone != null) {
-          trimmedPhone.draw(c, contentLeft, contentLeft + trimmedPhone.getWidth(), 0, Screen.dp(119f) + HeaderView.getTopOffset(), null, (equalFlags & FLAG_EQUAL_NUMBERS) != 0 ? (drawEqual ? 1f : 0f) : factor);
+          trimmedPhone.draw(c, contentLeft + leftPadding, contentLeft + leftPadding + trimmedPhone.getWidth(), 0, Screen.dp(119f) + HeaderView.getTopOffset(), null, (equalFlags & FLAG_EQUAL_NUMBERS) != 0 ? (drawEqual ? 1f : 0f) : factor);
         }
         if (emojiStatusHelper != null) {
           emojiStatusHelper.draw(c, rtl ? Screen.dp(16 + 24 * 2) : viewWidth - Screen.dp(88), viewHeight - Screen.dp(18 + 24), (equalFlags & FLAG_EQUAL_STATUSES) != 0 ? (drawEqual ? 1f : 0f) : factor);
@@ -478,8 +477,8 @@ public class DrawerHeaderView extends View implements Destroyable, GlobalAccount
     EmojiStatusHelper emojiStatusHelper;
     if (account.isPremium()) {
       emojiStatusHelper = new EmojiStatusHelper(parent.tdlib, this, null);
-      emojiStatusHelper.setClickListener((v, text, part, openParameters) ->
-        onEmojiStatusClick(v, text, part, openParameters, emojiStatusHelper)
+      emojiStatusHelper.setClickListener(v ->
+        onEmojiStatusClick(v, emojiStatusHelper)
       );
       emojiStatusHelper.setSharedUsageId("account_" + account.id);
     } else {
@@ -487,7 +486,7 @@ public class DrawerHeaderView extends View implements Destroyable, GlobalAccount
     }
 
     DisplayInfo info = new DisplayInfo(this, account, emojiStatusHelper);
-    info.trim(getMeasuredWidth());
+    info.trim(getMeasuredWidth() - getPaddingLeft() - getPaddingRight());
 
     currentAccount = account;
 
@@ -524,7 +523,16 @@ public class DrawerHeaderView extends View implements Destroyable, GlobalAccount
   protected void onLayout (boolean changed, int left, int top, int right, int bottom) {
     super.onLayout(changed, left, top, right, bottom);
     if (displayInfo != null) {
-      displayInfo.trim(getMeasuredWidth());
+      displayInfo.trim(getMeasuredWidth() - getPaddingLeft() - getPaddingRight());
+    }
+  }
+
+  @Override
+  public void setPadding (int left, int top, int right, int bottom) {
+    boolean changed = getPaddingLeft() != left || getPaddingRight() != right;
+    super.setPadding(left, top, right, bottom);
+    if (changed && displayInfo != null) {
+      displayInfo.trim(getMeasuredWidth() - getPaddingLeft() - getPaddingRight());
     }
   }
 
@@ -602,7 +610,7 @@ public class DrawerHeaderView extends View implements Destroyable, GlobalAccount
     if (displayInfoFuture == null || displayInfo == null) {
       if (displayInfo != null) {
         avatarFactor = displayInfo.avatar != null ? 1f : 0f;
-        displayInfo.draw(c, receiver, viewWidth, viewHeight, 1f, avatarFactor, 1f, DisplayInfo.DRAW_MODE_REGULAR, rtl, 0, true);
+        displayInfo.draw(this, c, receiver, viewWidth, viewHeight, 1f, avatarFactor, 1f, DisplayInfo.DRAW_MODE_REGULAR, rtl, 0, true);
       } else {
         avatarFactor = 0f;
       }
@@ -612,18 +620,18 @@ public class DrawerHeaderView extends View implements Destroyable, GlobalAccount
 
       int drawMode = DisplayInfo.DRAW_MODE_REGULAR;
       if (!allowGradient) {
-        displayInfo.draw(c, receiver, viewWidth, viewHeight, 1f - futureFactor, 1f, 1f, DisplayInfo.DRAW_MODE_IMAGES, rtl, 0, true);
-        displayInfoFuture.draw(c, receiver2, viewWidth, viewHeight, futureFactor, 1f, futureFactor, DisplayInfo.DRAW_MODE_IMAGES, rtl, 0, true);
+        displayInfo.draw(this, c, receiver, viewWidth, viewHeight, 1f - futureFactor, 1f, 1f, DisplayInfo.DRAW_MODE_IMAGES, rtl, 0, true);
+        displayInfoFuture.draw(this, c, receiver2, viewWidth, viewHeight, futureFactor, 1f, futureFactor, DisplayInfo.DRAW_MODE_IMAGES, rtl, 0, true);
         drawMode = DisplayInfo.DRAW_MODE_TEXTS;
         gradient.setAlpha(DRAWER_ALPHA);
         gradient.draw(c);
       }
 
       avatarFactor = displayInfo.avatar != null ? (avatarChanged ? 1f - futureFactor : 1f) : (avatarChanged ? futureFactor : 0f);
-      displayInfo.draw(c, receiver, viewWidth, viewHeight, 1f - futureFactor, avatarFactor, 1f, drawMode, rtl, displayInfoFuture.equalFlags, false);
+      displayInfo.draw(this, c, receiver, viewWidth, viewHeight, 1f - futureFactor, avatarFactor, 1f, drawMode, rtl, displayInfoFuture.equalFlags, false);
 
       avatarFactor = displayInfoFuture.avatar != null ? (avatarChanged ? futureFactor : 1f) : (avatarChanged ? 1f - futureFactor : 0f);
-      displayInfoFuture.draw(c, receiver2, viewWidth, viewHeight, futureFactor, avatarFactor, futureFactor, drawMode, rtl, displayInfoFuture.equalFlags, true);
+      displayInfoFuture.draw(this, c, receiver2, viewWidth, viewHeight, futureFactor, avatarFactor, futureFactor, drawMode, rtl, displayInfoFuture.equalFlags, true);
     }
 
     expanderView.draw(c, rtl ? Screen.dp(54f) / 2 : viewWidth - Screen.dp(54f) / 2, viewHeight - Screen.dp(54f) / 2, getTextColor(avatarFactor));

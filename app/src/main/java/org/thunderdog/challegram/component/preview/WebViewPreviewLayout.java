@@ -28,7 +28,6 @@ import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 
 import org.thunderdog.challegram.BaseActivity;
-import org.thunderdog.challegram.config.Config;
 import org.thunderdog.challegram.data.EmbeddedService;
 import org.thunderdog.challegram.navigation.ViewController;
 import org.thunderdog.challegram.player.TGPlayerController;
@@ -210,23 +209,20 @@ public class WebViewPreviewLayout extends PreviewLayout {
 
   @Override
   public void onPopupCompletelyShown (PopupLayout popup) {
-    preview.loadUrl(nativeEmbed.embedUrl);
+    if (nativeEmbed.hasAdditionalHttpHeaders()) {
+      preview.loadUrl(nativeEmbed.embedUrl, nativeEmbed.additionalHttpHeaders);
+    } else {
+      preview.loadUrl(nativeEmbed.embedUrl);
+    }
   }
 
   private void processFullscreen (boolean inFullscreen) {
     final BaseActivity context = UI.getContext(getContext());
     context.setScreenFlagEnabled(BaseActivity.SCREEN_FLAG_PLAYING_FULLSCREEN_WEB_VIDEO, inFullscreen);
     if (inFullscreen) {
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && !Config.USE_FULLSCREEN_NAVIGATION) {
-        savedStatusBarColor = context.getWindow().getStatusBarColor();
-        context.getWindow().setStatusBarColor(0xff000000);
-      }
       context.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
       context.setWindowDecorSystemUiVisibility(View.SYSTEM_UI_FLAG_LOW_PROFILE, false);
     } else {
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && !Config.USE_FULLSCREEN_NAVIGATION) {
-        context.getWindow().setStatusBarColor(savedStatusBarColor);
-      }
       context.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
       context.setWindowDecorSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE, false);
     }

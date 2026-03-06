@@ -133,7 +133,7 @@ public class IntroController extends ViewController<Void> implements GLSurfaceVi
   }
 
   @Override
-  public boolean passBackPressToActivity (boolean fromTop) {
+  public boolean needPassBackPressToActivity (boolean fromTop) {
     return true;
   }
 
@@ -206,7 +206,7 @@ public class IntroController extends ViewController<Void> implements GLSurfaceVi
   }
 
   public static boolean isIntroAttemptedButFailed () {
-    if (!BuildConfig.DEBUG && Settings.instance().isIntroAttempted()) {
+    if (Settings.instance().isIntroAttempted()) {
       Log.w("Not showing intro controller, because it has failed once");
       return true;
     }
@@ -295,9 +295,11 @@ public class IntroController extends ViewController<Void> implements GLSurfaceVi
         }
       }
       popupLayout.setDisableCancelOnTouchDown(true);
-      popupLayout.setBackListener((fromTop) -> {
+      popupLayout.setBackListener((fromTop, commit) -> {
         if (loginRequest == request) {
-          cancelLoginRequest();
+          if (commit) {
+            cancelLoginRequest();
+          }
         }
         return false;
       });
@@ -333,9 +335,11 @@ public class IntroController extends ViewController<Void> implements GLSurfaceVi
     });
     if (popupLayout != null) {
       popupLayout.setDisableCancelOnTouchDown(true);
-      popupLayout.setBackListener((fromTop) -> {
+      popupLayout.setBackListener((fromTop, commit) -> {
         if (loginRequest == request) {
-          cancelLoginRequest();
+          if (commit) {
+            cancelLoginRequest();
+          }
         }
         return false;
       });
@@ -1137,7 +1141,7 @@ public class IntroController extends ViewController<Void> implements GLSurfaceVi
     ids.append(R.id.btn_log_files);
     icons.append(R.drawable.baseline_bug_report_24);
     strings.append("Log Settings");
-    if (Config.ALLOW_DEBUG_DC) {
+    if (Config.ALLOW_DEBUG_DC || getTdlib().account().isDebug()) {
       ids.append(R.id.btn_tdlib_debugDatacenter);
       icons.append(R.drawable.baseline_build_24);
       strings.append("Proceed in " + (getTdlib().account().isDebug() ? "production" : "debug") + " Telegram environment");
@@ -1652,6 +1656,7 @@ public class IntroController extends ViewController<Void> implements GLSurfaceVi
 
   @Override
   public void onPageScrolled (int position, float positionOffset, int positionOffsetPixels) {
+    positionOffset = ViewPager.clampPositionOffset(positionOffset);
     lastActualPosition = position;
     lastOffset = positionOffset;
     updateTexts(false);

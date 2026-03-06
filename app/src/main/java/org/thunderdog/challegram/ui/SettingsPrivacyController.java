@@ -52,7 +52,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import me.vkryl.core.StringUtils;
-import me.vkryl.td.Td;
+import tgx.td.Td;
 
 public class SettingsPrivacyController extends RecyclerViewController<SettingsPrivacyController.Args> implements View.OnClickListener, ViewController.SettingsIntDelegate, TdlibCache.UserDataChangeListener, TdlibContactManager.StatusChangeListener, PrivacySettingsListener, SessionListener, ChatListener {
   public static class Args {
@@ -102,6 +102,8 @@ public class SettingsPrivacyController extends RecyclerViewController<SettingsPr
           v.getToggler().setRadioEnabled(Settings.instance().needsIncognitoMode(), isUpdate);
         } else if (itemId == R.id.btn_blockedSenders) {
           v.setData(getBlockedSendersCount());
+        } else if (itemId == R.id.btn_newChatsPrivacy) {
+          v.setData(buildNewChatsPrivacy());
         } else if (itemId == R.id.btn_privacyRule) {
           v.setData(buildPrivacy(((TdApi.UserPrivacySetting) item.getData()).getConstructor()));
         } else if (itemId == R.id.btn_sessions) {
@@ -158,6 +160,7 @@ public class SettingsPrivacyController extends RecyclerViewController<SettingsPr
     TdApi.UserPrivacySetting[] privacySettings = new TdApi.UserPrivacySetting[] {
       new TdApi.UserPrivacySettingShowStatus(),
       new TdApi.UserPrivacySettingShowProfilePhoto(),
+      new TdApi.UserPrivacySettingShowProfileAudio(),
       new TdApi.UserPrivacySettingShowBirthdate(),
       new TdApi.UserPrivacySettingShowBio(),
       new TdApi.UserPrivacySettingShowPhoneNumber(),
@@ -185,6 +188,15 @@ public class SettingsPrivacyController extends RecyclerViewController<SettingsPr
       }
       items.add(new ListItem(ListItem.TYPE_VALUED_SETTING_COMPACT, R.id.btn_privacyRule, SettingsPrivacyKeyController.getIcon(privacySetting), SettingsPrivacyKeyController.getName(privacySetting, false, false)).setData(privacySetting).setLongId(privacySetting.getConstructor()));
       getPrivacy(privacySetting);
+      if (privacySetting.getConstructor() == TdApi.UserPrivacySettingAllowPrivateVoiceAndVideoNoteMessages.CONSTRUCTOR) {
+        items.add(new ListItem(ListItem.TYPE_SEPARATOR_FULL));
+        items.add(new ListItem(ListItem.TYPE_VALUED_SETTING_COMPACT, R.id.btn_newChatsPrivacy, R.drawable.baseline_chat_bubble_24, R.string.PrivacyMessagePreview));
+        tdlib.send(new TdApi.GetNewChatPrivacySettings(), (newChatPrivacySettings, error) -> runOnUiThreadOptional(() -> {
+          if (newChatPrivacySettings != null) {
+            setNewChatsPrivacy(newChatPrivacySettings);
+          }
+        }));
+      }
     }
     items.add(new ListItem(ListItem.TYPE_SHADOW_BOTTOM));
     items.add(new ListItem(ListItem.TYPE_DESCRIPTION, 0, 0, R.string.PeerToPeerInfo));
@@ -304,6 +316,13 @@ public class SettingsPrivacyController extends RecyclerViewController<SettingsPr
       if (!isDestroyed()) {
         setPrivacyRules(setting.getConstructor(), rules);
       }
+    });
+  }
+
+  @Override
+  public void onNewChatPrivacySettingsChanged (TdApi.NewChatPrivacySettings newChatPrivacySettings) {
+    runOnUiThreadOptional(() -> {
+      setNewChatsPrivacy(newChatPrivacySettings);
     });
   }
 
@@ -430,13 +449,29 @@ public class SettingsPrivacyController extends RecyclerViewController<SettingsPr
       SettingsBlockedController c = new SettingsBlockedController(context, tdlib);
       c.setArguments(new TdApi.BlockListMain());
       navigateTo(c);
+    } else if (id == R.id.btn_newChatsPrivacy) {
+      if (!tdlib.canSetNewChatPrivacySettings() && tdlib.ui().showPremiumAlert(this, v, TdlibUi.PremiumFeature.NEW_CHATS_PRIVACY)) {
+        return;
+      }
+      if (true) {
+        context.tooltipManager()
+          .builder(v)
+          .icon(R.drawable.baseline_warning_24)
+          .controller(this)
+          .show(tdlib, "Changing message privacy is not available, please wait for the next update or try in desktop app.")
+          .hideDelayed();
+        return;
+      }
+      SettingsPrivacyKeyController c = new SettingsPrivacyKeyController(context, tdlib);
+      c.setArguments(SettingsPrivacyKeyController.Args.newChatsPrivacy());
+      navigateTo(c);
     } else if (id == R.id.btn_privacyRule) {
       TdApi.UserPrivacySetting setting = (TdApi.UserPrivacySetting) ((ListItem) v.getTag()).getData();
       if (Td.requiresPremiumSubscription(setting) && tdlib.ui().showPremiumAlert(this, v, TdlibUi.PremiumFeature.RESTRICT_VOICE_AND_VIDEO_MESSAGES)) {
         return;
       }
       SettingsPrivacyKeyController c = new SettingsPrivacyKeyController(context, tdlib);
-      c.setArguments(setting);
+      c.setArguments(new SettingsPrivacyKeyController.Args(setting));
       navigateTo(c);
     } else if (id == R.id.btn_sessions) {
       lastClickedButton = id;
@@ -444,7 +479,7 @@ public class SettingsPrivacyController extends RecyclerViewController<SettingsPr
       SettingsWebsitesController websites = new SettingsWebsitesController(context, tdlib);
       websites.setArguments(this);
 
-      SimpleViewPagerController c = new SimpleViewPagerController(context, tdlib, new ViewController[] {sessions, websites}, new String[] {Lang.getString(R.string.Devices).toUpperCase(), Lang.getString(R.string.Websites).toUpperCase()}, false);
+      SimpleViewPagerController c = new SimpleViewPagerController(context, tdlib, new ViewController<?>[] {sessions, websites}, new String[] {Lang.getString(R.string.Devices).toUpperCase(), Lang.getString(R.string.Websites).toUpperCase()}, false);
       navigateTo(c);
     } else if (id == R.id.btn_passcode) {
       lastClickedButton = id;
@@ -469,31 +504,19 @@ public class SettingsPrivacyController extends RecyclerViewController<SettingsPr
       }
     } else if (id == R.id.btn_loginEmail) {
       if (passwordState != null && !StringUtils.isEmpty(passwordState.loginEmailAddressPattern)) {
-        showOptions(new Options.Builder()
-          .title(passwordState.loginEmailAddressPattern) // TODO(spoiler): replace `*` with the spoiler effect
-          .info(Lang.getMarkdownString(this, R.string.ChangeEmailPromptText))
-          .item(new OptionItem.Builder().id(R.id.btn_changeEmail).name(R.string.ChangeEmailPromptButton).icon(R.drawable.baseline_edit_24).build())
-          .cancelItem()
-          .build(), (optionView, optionId) -> {
-            if (optionId == R.id.btn_changeEmail) {
-              PasswordController controller = new PasswordController(context, tdlib);
-              controller.setArguments(new PasswordController.Args(PasswordController.MODE_LOGIN_EMAIL_CHANGE, passwordState));
-              navigateTo(controller);
-            }
-            return true;
-          }
-        );
+        tdlib.ui().editLoginEmail(this, passwordState);
       }
     } else if (id == R.id.btn_accountTTL) {
       int days = accountTtl != null ? accountTtl.days : 0;
       int months = days / 30;
-      int years = months / 12;
-      showSettings(id, new ListItem[] {
+      showSettings(new SettingsWrapBuilder(id).setRawItems(new ListItem[] {
         new ListItem(ListItem.TYPE_RADIO_OPTION, R.id.btn_1month, 0, Lang.pluralBold(R.string.xMonths, 1), R.id.btn_accountTTL, months == 1),
         new ListItem(ListItem.TYPE_RADIO_OPTION, R.id.btn_3months, 0, Lang.pluralBold(R.string.xMonths, 3), R.id.btn_accountTTL, months == 3),
         new ListItem(ListItem.TYPE_RADIO_OPTION, R.id.btn_6month, 0, Lang.pluralBold(R.string.xMonths, 6), R.id.btn_accountTTL, months == 6),
-        new ListItem(ListItem.TYPE_RADIO_OPTION, R.id.btn_1year, 0, Lang.pluralBold(R.string.xYears, 1), R.id.btn_accountTTL, years == 1)
-      }, this);
+        new ListItem(ListItem.TYPE_RADIO_OPTION, R.id.btn_12months, 0, Lang.pluralBold(R.string.xMonths, 12), R.id.btn_accountTTL, months == 12),
+        new ListItem(ListItem.TYPE_RADIO_OPTION, R.id.btn_18months, 0, Lang.pluralBold(R.string.xMonths, 18), R.id.btn_accountTTL, months == 18),
+        new ListItem(ListItem.TYPE_RADIO_OPTION, R.id.btn_24months, 0, Lang.pluralBold(R.string.xMonths, 24), R.id.btn_accountTTL, months == 24),
+      }).setIntDelegate(this).setAllowResize(false));
     } else if (id == R.id.btn_deleteAccount) {
       tdlib.ui().permanentlyDeleteAccount(this, true);
     } else if (id == R.id.btn_clearAllDrafts) {
@@ -518,8 +541,12 @@ public class SettingsPrivacyController extends RecyclerViewController<SettingsPr
           resultDaysTTL = 91;
         } else if (resultId == R.id.btn_6month) {
           resultDaysTTL = 181;
-        } else if (resultId == R.id.btn_1year) {
+        } else if (resultId == R.id.btn_12months) {
           resultDaysTTL = 366;
+        } else if (resultId == R.id.btn_18months) {
+          resultDaysTTL = 546;
+        } else if (resultId == R.id.btn_24months) {
+          resultDaysTTL = 730;
         } else {
           resultDaysTTL = 0;
         }
@@ -730,12 +757,11 @@ public class SettingsPrivacyController extends RecyclerViewController<SettingsPr
       if (days < 30) {
         duration = Lang.pluralBold(R.string.DeleteAccountIfAwayForDays, days);
       } else {
-        days /= 30;
-        if (days < 12) {
-          duration = Lang.pluralBold(R.string.DeleteAccountIfAwayForMonths, days);
+        int months = days / 30;
+        if (months % 12 == 0) {
+          return Lang.pluralBold(R.string.DeleteAccountIfAwayForYears, months / 12);
         } else {
-          days /= 12;
-          duration = Lang.pluralBold(R.string.DeleteAccountIfAwayForYears, days);
+          return Lang.pluralBold(R.string.DeleteAccountIfAwayForMonths, months);
         }
       }
       return duration;
@@ -766,6 +792,21 @@ public class SettingsPrivacyController extends RecyclerViewController<SettingsPr
     privacyRules.put(privacyKey, rules);
     if (adapter != null)
       adapter.updateValuedSettingByLongId(privacyKey);
+  }
+
+  private TdApi.NewChatPrivacySettings newChatPrivacySettings;
+
+  private CharSequence buildNewChatsPrivacy () {
+    if (newChatPrivacySettings != null) {
+      return Lang.getMarkdownString(this, newChatPrivacySettings.incomingPaidMessageStarCount > 0 ? R.string.PrivacyMessagePaid : newChatPrivacySettings.allowNewChatsFromUnknownUsers ? R.string.PrivacyMessageEverybody : R.string.PrivacyMessageContactsPremium);
+    } else {
+      return Lang.getString(R.string.LoadingInformation);
+    }
+  }
+
+  private void setNewChatsPrivacy (TdApi.NewChatPrivacySettings newChatPrivacySettings) {
+    this.newChatPrivacySettings = newChatPrivacySettings;
+    adapter.updateValuedSettingById(R.id.btn_newChatsPrivacy);
   }
 
   private void setBlockedSenders (TdApi.MessageSenders senders) {

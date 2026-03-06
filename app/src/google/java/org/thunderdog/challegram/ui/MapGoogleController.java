@@ -64,7 +64,7 @@ import org.thunderdog.challegram.util.text.Letters;
 import java.util.List;
 
 import me.vkryl.core.lambda.Destroyable;
-import me.vkryl.td.MessageId;
+import tgx.td.MessageId;
 
 final class MapGoogleController extends MapController<MapView, MapGoogleController.MarkerData> implements OnMapReadyCallback, GoogleMap.OnMyLocationChangeListener, GoogleMap.OnCameraMoveStartedListener, GoogleMap.OnMarkerClickListener {
   private static final float DEFAULT_ZOOM_LEVEL = 16.0f;
@@ -270,8 +270,8 @@ final class MapGoogleController extends MapController<MapView, MapGoogleControll
 
     @Override
     public void imageLoaded (final ImageFile file, boolean successful, Bitmap bitmap) {
-      if (successful && isRequested(file) && canvas != null && U.isValidBitmap((Bitmap) bitmap)) {
-        drawAvatar(canvas, (Bitmap) bitmap);
+      if (successful && isRequested(file) && canvas != null && U.isValidBitmap(bitmap)) {
+        drawAvatar(canvas, bitmap);
         UI.post(() -> {
           if (isRequested(file)) {
             marker.setIcon(BitmapDescriptorFactory.fromBitmap(this.bitmap));
@@ -586,6 +586,7 @@ final class MapGoogleController extends MapController<MapView, MapGoogleControll
   }
 
   @Override
+  @SuppressWarnings("unchecked")
   public boolean onMarkerClick (Marker marker) {
     LocationPoint<MarkerData> point = (LocationPoint<MarkerData>) marker.getTag();
     if (point != null) {

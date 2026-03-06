@@ -174,6 +174,11 @@ public class SettingsStickersController extends ViewPagerController<SettingsCont
   }
 
   @Override
+  public boolean supportsBottomInset () {
+    return true;
+  }
+
+  @Override
   protected ViewController<?> onCreatePagerItemForPosition (Context context, int position) {
     switch (position) {
       case STICKERS_POSITION: {
@@ -312,6 +317,7 @@ public class SettingsStickersController extends ViewPagerController<SettingsCont
   @Override
   public void onPageScrolled (int position, float positionOffset, int positionOffsetPixels) {
     super.onPageScrolled(position, positionOffset, positionOffsetPixels);
+    positionOffset = ViewPager.clampPositionOffset(positionOffset);
     lastSelectionFactor = positionOffset + position;
     if (searchHeaderCell != null) {
       searchHeaderCell.getTopView().setSelectionFactor(lastSelectionFactor);

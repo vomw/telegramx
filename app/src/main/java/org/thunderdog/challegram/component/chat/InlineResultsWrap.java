@@ -30,7 +30,6 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import org.drinkless.tdlib.TdApi;
-import org.thunderdog.challegram.BaseActivity;
 import org.thunderdog.challegram.R;
 import org.thunderdog.challegram.component.sticker.StickerSmallView;
 import org.thunderdog.challegram.component.sticker.TGStickerObj;
@@ -66,6 +65,7 @@ import org.thunderdog.challegram.ui.SimpleMediaViewController;
 import org.thunderdog.challegram.util.CancellableResultHandler;
 import org.thunderdog.challegram.v.NewFlowLayoutManager;
 import org.thunderdog.challegram.widget.BaseView;
+import org.thunderdog.challegram.widget.RootFrameLayout;
 import org.thunderdog.challegram.widget.ShadowView;
 
 import java.util.ArrayList;
@@ -77,9 +77,9 @@ import me.vkryl.android.widget.FrameLayoutFix;
 import me.vkryl.core.ColorUtils;
 import me.vkryl.core.MathUtils;
 import me.vkryl.core.StringUtils;
-import me.vkryl.td.ChatId;
+import tgx.td.ChatId;
 
-public class InlineResultsWrap extends FrameLayoutFix implements View.OnClickListener, StickerSmallView.StickerMovementCallback, InlineResultsAdapter.HeightProvider, FactorAnimator.Target, View.OnLongClickListener, TGLegacyManager.EmojiLoadListener, BaseView.CustomControllerProvider {
+public class InlineResultsWrap extends FrameLayoutFix implements View.OnClickListener, StickerSmallView.StickerMovementCallback, InlineResultsAdapter.HeightProvider, FactorAnimator.Target, View.OnLongClickListener, TGLegacyManager.EmojiLoadListener, BaseView.CustomControllerProvider, RootFrameLayout.MarginModifier {
   private RecyclerView recyclerView;
   private ShadowView shadowView;
   private GridLayoutManager gridManager;
@@ -94,7 +94,6 @@ public class InlineResultsWrap extends FrameLayoutFix implements View.OnClickLis
 
   public interface OffsetProvider {
     int provideOffset (InlineResultsWrap v);
-    int provideParentHeight (InlineResultsWrap v);
   }
 
   private OffsetProvider offsetProvider;
@@ -121,6 +120,10 @@ public class InlineResultsWrap extends FrameLayoutFix implements View.OnClickLis
 
   public InlineResultsWrap (Context context) {
     super(context);
+
+    setClipChildren(true);
+    setClipToPadding(true);
+    setLayoutParams(new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
     gridManager = new GridLayoutManager(context, spanCount = calculateSpanCount(Screen.currentWidth(), Screen.currentHeight()));
     gridManager.setSpanSizeLookup(new GridLayoutManager.SpanSizeLookup() {
@@ -181,6 +184,7 @@ public class InlineResultsWrap extends FrameLayoutFix implements View.OnClickLis
                 break;
               }
             }
+            break;
           }
           case MotionEvent.ACTION_UP:
           case MotionEvent.ACTION_CANCEL: {
@@ -229,6 +233,15 @@ public class InlineResultsWrap extends FrameLayoutFix implements View.OnClickLis
 
       @Override
       public void onScrolled (RecyclerView recyclerView, int dx, int dy) {
+        /*View topView = recyclerView.getLayoutManager().findViewByPosition(0);
+        if (topView != null) {
+          Log.v("scroll: %d inset: %d %d " +
+            "margin: %d, shadow: %d %d " +
+              "items: %d root: %d top: %d expected: %d",
+            recyclerView.getLayoutManager().getDecoratedTop(topView), topOffset, bottomInset,
+            lastBottomMargin, shadowView.getLayoutParams().height, ShadowView.simpleBottomShadowHeight(),
+            measureItemsHeight(), rootView != null ? rootView.getMeasuredHeight() : 0, topView.getMeasuredHeight(), provideHeight());
+        }*/
         if (scrollCallback != null) {
           scrollCallback.onScrolled(recyclerView, dx, dy);
         }
@@ -799,6 +812,7 @@ public class InlineResultsWrap extends FrameLayoutFix implements View.OnClickLis
     if (adapter.getItemCount() > 0) {
       adapter.notifyItemChanged(0);
     }
+    Views.setBottomMargin(this, bottomInset + lastBottomMargin);
   }
 
   @Override
@@ -817,10 +831,7 @@ public class InlineResultsWrap extends FrameLayoutFix implements View.OnClickLis
   private void setBottomMargin (int bottomMargin) {
     if (this.lastBottomMargin != bottomMargin) {
       this.lastBottomMargin = bottomMargin;
-      /*FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) recyclerView.getLayoutParams();
-      params.topMargin = bottomMargin;
-      recyclerView.setLayoutParams(params);*/
-      setTranslationY(-bottomMargin);
+      updateOffset();
     }
     if (lickView != null) {
       lickView.invalidate();
@@ -852,9 +863,50 @@ public class InlineResultsWrap extends FrameLayoutFix implements View.OnClickLis
 
   @Override
   public int provideHeight () {
-    int height = offsetProvider != null ? offsetProvider.provideParentHeight(this) : ((BaseActivity) getContext()).getContentView().getMeasuredHeight(); //  - measureItemsHeight();
-    height -= getMinItemsHeight();
-    return Math.max(0, height);
+    // height of the offset
+    final int totalHeight = rootView != null ? rootView.getMeasuredHeight() - bottomInset - lastBottomMargin : 0;
+    int itemsHeight = measureItemsHeight();
+    return Math.max(topOffset, totalHeight - Math.min(totalHeight / 2, itemsHeight));
+  }
+
+  private int topOffset, bottomInset;
+
+  private boolean setInsets (int topOffset, int bottomInset) {
+    if (this.topOffset != topOffset || this.bottomInset != bottomInset) {
+      this.topOffset = topOffset;
+      this.bottomInset = bottomInset;
+      return true;
+    }
+    return false;
+  }
+
+  @Override
+  public void onApplyMarginInsets (View child, LayoutParams params, Rect legacyInsets, Rect insets, Rect insetsWithoutIme) {
+    boolean changed;
+    changed = Views.setMargins(params,
+      legacyInsets.left,
+      legacyInsets.top,
+      legacyInsets.right,
+      insets.bottom + lastBottomMargin
+    );
+    changed = setInsets(insets.top, insets.bottom) || changed;
+    if (changed) {
+      UI.post(this::updateOffset);
+    }
+  }
+
+  private RootFrameLayout rootView;
+
+  @Override
+  protected void onAttachedToWindow () {
+    super.onAttachedToWindow();
+    rootView = Views.findAncestor(this, RootFrameLayout.class, true);
+  }
+
+  @Override
+  protected void onDetachedFromWindow () {
+    super.onDetachedFromWindow();
+    rootView = null;
   }
 
   public int getMinItemsHeight () {
@@ -879,7 +931,7 @@ public class InlineResultsWrap extends FrameLayoutFix implements View.OnClickLis
       switchPmHandler = null;
     }
 
-    final ViewController<?> c = UI.getCurrentStackItem();
+    final ViewController<?> c = UI.getCurrentStackItem(getContext());
     long sourceChatId = 0;
     if (c instanceof MessagesController) {
       if (((MessagesController) c).comparePrivateUserId(button.getUserId())) {

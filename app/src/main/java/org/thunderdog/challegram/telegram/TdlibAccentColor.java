@@ -31,7 +31,7 @@ import java.lang.annotation.RetentionPolicy;
 
 import me.vkryl.core.ColorUtils;
 import me.vkryl.core.StringUtils;
-import me.vkryl.td.Td;
+import tgx.td.Td;
 
 public final class TdlibAccentColor {
 
@@ -178,6 +178,7 @@ public final class TdlibAccentColor {
             case UseCase.PRIMARY_BIG:
               return ColorId.file;
           }
+          break;
         case InternalId.REGULAR:
           switch (useCase) {
             case UseCase.NAME:
@@ -189,6 +190,7 @@ public final class TdlibAccentColor {
               // Unsupported
               break;
           }
+          break;
         case InternalId.INACTIVE:
           switch (useCase) {
             case UseCase.NAME:

@@ -60,7 +60,7 @@ import java.util.concurrent.TimeUnit;
 import me.vkryl.android.util.ClickHelper;
 import me.vkryl.core.ColorUtils;
 import me.vkryl.core.lambda.Filter;
-import me.vkryl.td.MessageId;
+import tgx.td.MessageId;
 
 abstract class TGMessageServiceImpl extends TGMessage {
   protected TGMessageServiceImpl (MessagesManager manager, TdApi.Message msg) {
@@ -134,9 +134,8 @@ abstract class TGMessageServiceImpl extends TGMessage {
 
   public void setDisplayMessage (long chatId, long messageId, Filter<TdApi.Message> callback) {
     originalMessageCreator = textCreator;
-    tdlib.client().send(new TdApi.GetMessage(chatId, messageId), result -> {
-      if (result.getConstructor() == TdApi.Message.CONSTRUCTOR) {
-        TdApi.Message message = (TdApi.Message) result;
+    tdlib.send(new TdApi.GetMessage(chatId, messageId), (message, error) -> {
+      if (message != null) {
         runOnUiThreadOptional(() -> {
           if (callback.accept(message)) {
             this.previewMessage = message;
@@ -184,11 +183,6 @@ abstract class TGMessageServiceImpl extends TGMessage {
 
   @Override
   public boolean canBePinned () {
-    return false;
-  }
-
-  @Override
-  public boolean canBeReacted () {
     return false;
   }
 
@@ -314,6 +308,9 @@ abstract class TGMessageServiceImpl extends TGMessage {
 
   @Override
   public boolean onTouchEvent (MessageView view, MotionEvent e) {
+    if (super.onTouchEvent(view, e)) {
+      return true;
+    }
     boolean res = displayText != null && displayText.onTouchEvent(view, e);
     return helper.onTouchEvent(view, e) || res;
   }
@@ -683,7 +680,7 @@ abstract class TGMessageServiceImpl extends TGMessage {
   protected final class InvoiceArgument extends MessageArgument {
     public InvoiceArgument (TdApi.Message message) {
       super(message, new TdApi.FormattedText(
-        ((TdApi.MessageInvoice) message.content).title,
+        ((TdApi.MessageInvoice) message.content).productInfo.title,
         null
       ));
     }

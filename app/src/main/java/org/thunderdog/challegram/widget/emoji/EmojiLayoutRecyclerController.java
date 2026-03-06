@@ -54,7 +54,7 @@ import me.vkryl.android.AnimatorUtils;
 import me.vkryl.android.animator.FactorAnimator;
 import me.vkryl.android.widget.FrameLayoutFix;
 import me.vkryl.core.StringUtils;
-import me.vkryl.td.Td;
+import tgx.td.Td;
 
 public class EmojiLayoutRecyclerController extends ViewController<EmojiLayoutRecyclerController.Callback> implements
   StickerSmallView.StickerMovementCallback,
@@ -81,6 +81,17 @@ public class EmojiLayoutRecyclerController extends ViewController<EmojiLayoutRec
     super(context, tdlib);
     this.controllerId = controllerId;
     this.mediaType = EmojiLayout.getEmojiMediaType(controllerId);
+  }
+
+  @Override
+  public boolean supportsBottomInset () {
+    return true;
+  }
+
+  @Override
+  protected void onBottomInsetChanged (int extraBottomInset, int extraBottomInsetWithoutIme, boolean isImeInset) {
+    super.onBottomInsetChanged(extraBottomInset, extraBottomInsetWithoutIme, isImeInset);
+    Views.applyBottomInset(recyclerView, extraBottomInset);
   }
 
   @Override
@@ -112,6 +123,7 @@ public class EmojiLayoutRecyclerController extends ViewController<EmojiLayoutRec
         checkWidth(getMeasuredWidth());
       }
     };
+    Views.applyBottomInset(recyclerView, extraBottomInset);
     recyclerView.setLayoutParams(FrameLayoutFix.newParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
     recyclerView.setOverScrollMode(Config.HAS_NICE_OVER_SCROLL_EFFECT ? View.OVER_SCROLL_IF_CONTENT_SCROLLS :View.OVER_SCROLL_NEVER);
     recyclerView.setHasFixedSize(true);
@@ -901,8 +913,12 @@ public class EmojiLayoutRecyclerController extends ViewController<EmojiLayoutRec
     return ignoreStickersScroll != 0;
   }
 
-  private void beforeStickerChanges () {
+  public void beforeStickerChanges () {
     ignoreStickersScroll++;
+  }
+
+  public void afterStickerChanges () {
+    ignoreStickersScroll--;
   }
 
   private void resetScrollCache () {
@@ -912,13 +928,11 @@ public class EmojiLayoutRecyclerController extends ViewController<EmojiLayoutRec
     if (callbacks != null) {
       callbacks.resetScrollState(true); // FIXME upd: ... fixme what?
     }
-    UI.post(() -> {
-      /*if (emojiLayout != null && contentView.getCurrentSection() == SECTION_STICKERS) {
+    /*if (emojiLayout != null && contentView.getCurrentSection() == SECTION_STICKERS) {
         emojiLayout.setCurrentStickerSectionByPosition(getStickerSetSection(), true, true);
         emojiLayout.resetScrollState(true);
       }*/
-      ignoreStickersScroll--;
-    }, 400);
+    UI.post(this::afterStickerChanges, 400);
   }
 
   public void addStickerSet (TGStickerSetInfo stickerSet, ArrayList<MediaStickersAdapter.StickerItem> items, int index) {
@@ -1059,7 +1073,6 @@ public class EmojiLayoutRecyclerController extends ViewController<EmojiLayoutRec
     void onMoveStickerSection (@IdRes int controllerId, int fromSection, int toSection);
     void onRemoveStickerSection (@IdRes int controllerId, int section);
 
-    @Deprecated
     boolean isAnimatedEmojiOnly ();
     float getHeaderHideFactor ();
   }

@@ -19,6 +19,7 @@ import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
 import android.annotation.TargetApi;
 import android.content.Intent;
+import android.graphics.Rect;
 import android.os.Build;
 import android.text.TextUtils;
 import android.util.TypedValue;
@@ -79,6 +80,7 @@ import org.thunderdog.challegram.util.HapticMenuHelper;
 import org.thunderdog.challegram.util.Permissions;
 import org.thunderdog.challegram.widget.NoScrollTextView;
 import org.thunderdog.challegram.widget.PopupLayout;
+import org.thunderdog.challegram.widget.RootFrameLayout;
 import org.thunderdog.challegram.widget.SendButton;
 import org.thunderdog.challegram.widget.ShadowView;
 
@@ -92,13 +94,13 @@ import me.vkryl.android.animator.FactorAnimator;
 import me.vkryl.android.widget.FrameLayoutFix;
 import me.vkryl.core.ColorUtils;
 import me.vkryl.core.lambda.Destroyable;
-import me.vkryl.td.Td;
-import me.vkryl.td.TdConstants;
+import tgx.td.Td;
+import tgx.td.TdConstants;
 
 public class MediaLayout extends FrameLayoutFix implements
   MediaBottomBar.Callback, BaseActivity.PopupAnimatorOverride,
   View.OnClickListener, BaseActivity.ActivityListener, ActivityResultHandler, /*ActivityResultCancelHandler,*/ BackListener,
-  PopupLayout.AnimatedPopupProvider, PopupLayout.DismissListener, FactorAnimator.Target, ThemeChangeListener, Lang.Listener, Destroyable, PopupLayout.TouchDownInterceptor {
+  PopupLayout.AnimatedPopupProvider, PopupLayout.DismissListener, FactorAnimator.Target, ThemeChangeListener, Lang.Listener, Destroyable, PopupLayout.TouchDownInterceptor, RootFrameLayout.MarginModifier {
 
   private interface MediaCallback { }
 
@@ -140,6 +142,29 @@ public class MediaLayout extends FrameLayoutFix implements
   public MediaLayout (ViewController<?> context) {
     super(context.context());
     this.parent = context;
+  }
+
+  private int extraBottomInset, extraBottomInsetWithoutIme;
+
+  private void setExtraBottomInset (int extraBottomInset, int extraBottomInsetWithoutIme) {
+    if (this.extraBottomInset != extraBottomInset || this.extraBottomInsetWithoutIme != extraBottomInsetWithoutIme) {
+      this.extraBottomInset = extraBottomInset;
+      this.extraBottomInsetWithoutIme = extraBottomInsetWithoutIme;
+      if (bottomBar != null) {
+        bottomBar.setBottomInset(extraBottomInsetWithoutIme);
+      }
+      for (MediaBottomBaseController<?> controller : controllers) {
+        if (controller != null) {
+          controller.setBottomInset(extraBottomInset, extraBottomInsetWithoutIme);
+        }
+      }
+    }
+  }
+
+  @Override
+  public void onApplyMarginInsets (View child, LayoutParams params, Rect legacyInsets, Rect insets, Rect insetsWithoutIme) {
+    Views.setMargins(params, legacyInsets.left, legacyInsets.top, legacyInsets.right, 0);
+    setExtraBottomInset(insets.bottom, insetsWithoutIme.bottom);
   }
 
   public Tdlib tdlib () {
@@ -248,10 +273,11 @@ public class MediaLayout extends FrameLayoutFix implements
       }
     }
 
-    controllers = new MediaBottomBaseController[items.length];
+    controllers = new MediaBottomBaseController<?>[items.length];
 
     if (mode == MODE_DEFAULT) {
       bottomBar = new MediaBottomBar(getContext());
+      bottomBar.setBottomInset(extraBottomInsetWithoutIme);
       bottomBar.setItems(items, index);
       bottomBar.setCallback(this);
       shadowView = new ShadowView(getContext());
@@ -302,7 +328,7 @@ public class MediaLayout extends FrameLayoutFix implements
 
   public void initCustom () {
     mode = MODE_CUSTOM_POPUP;
-    controllers = new MediaBottomBaseController[1];
+    controllers = new MediaBottomBaseController<?>[1];
     currentController = getControllerForIndex(0);
     View controllerView = currentController.getValue();
 
@@ -368,33 +394,38 @@ public class MediaLayout extends FrameLayoutFix implements
   }
 
   @Override
-  public boolean onBackPressed (boolean fromTop) {
+  public boolean onBackPressed (boolean fromTop, boolean commit) {
     MediaBottomBaseController<?> c = getCurrentController();
     if (c.isAnimating()) {
       return true;
     }
-    if (c.onBackPressed(fromTop)) {
+    if (c.performOnBackPressed(fromTop, commit)) {
       return true;
     }
     if (counterView != null && counterView.isEnabled()) {
-      if (!c.showExitWarning(false)) {
-        cancelMultiSelection();
+      if (commit) {
+        if (!c.showExitWarning(false, commit)) {
+          cancelMultiSelection();
+        }
       }
       return true;
     }
     if (c.isExpanded()) {
-      c.collapseToStart();
+      if (commit) {
+        c.collapseToStart();
+      }
       return true;
     }
-    return c.showExitWarning(false);
+    return c.showExitWarning(false, commit);
   }
 
   public long getTargetChatId () {
     return target != null ? target.getChatId() : 0;
   }
 
-  public long getTargetMessageThreadId () {
-    return target != null ? target.getMessageThreadId() : 0;
+  @Nullable
+  public TdApi.MessageTopic getTargetTopicId () {
+    return target != null ? target.getMessageTopicId() : null;
   }
 
   public boolean areScheduledOnly () {
@@ -421,6 +452,7 @@ public class MediaLayout extends FrameLayoutFix implements
     if (c == null) {
       c = createControllerForIndex(index);
       c.attachToThemeListeners(themeListeners);
+      c.setBottomInset(extraBottomInsetWithoutIme, extraBottomInsetWithoutIme);
       controllers[index] = c;
     }
     return c;
@@ -501,7 +533,7 @@ public class MediaLayout extends FrameLayoutFix implements
   @Override
   public boolean onBackgroundTouchDown (PopupLayout popupLayout, MotionEvent e) {
     MediaBottomBaseController<?> c = getCurrentController();
-    return c != null && c.showExitWarning(false);
+    return c != null && c.showExitWarning(false, true);
   }
 
   @Override
@@ -699,7 +731,12 @@ public class MediaLayout extends FrameLayoutFix implements
             long chatId = getTargetChatId();
             if (chatId != 0) {
               CreatePollController c = new CreatePollController(target.context(), target.tdlib());
-              c.setArguments(new CreatePollController.Args(chatId, target.getMessageThread(), target));
+              c.setArguments(new CreatePollController.Args(
+                chatId,
+                target.getMessageTopicId(),
+                target.getInputSuggestedPostInfo(null),
+                target
+              ));
               parent.navigateTo(c);
               hide(false);
             }
@@ -799,7 +836,7 @@ public class MediaLayout extends FrameLayoutFix implements
   }
 
   private int getBottomBarHeight () {
-    return customBottomBar != null ? customBottomBar.getMeasuredHeight() : MediaBottomBar.getBarHeight();
+    return customBottomBar != null ? customBottomBar.getMeasuredHeight() : MediaBottomBar.getBarHeight() + extraBottomInsetWithoutIme;
   }
 
   public int getCurrentBottomBarHeight () {
@@ -1294,7 +1331,9 @@ public class MediaLayout extends FrameLayoutFix implements
         ImageGalleryFile[] result = new ImageGalleryFile[galleryFiles.size()];
         galleryFiles.toArray(result);
         Settings.instance().setNeedGroupMedia(needGroupMedia);
-        target.sendPhotosAndVideosCompressed(result, needGroupMedia, options, disableMarkdown, asFiles, allowSpoiler && needSpoiler);
+        boolean showCaptionAboveMedia = false;
+        boolean hasSpoiler = allowSpoiler && needSpoiler;
+        target.sendPhotosAndVideosCompressed(result, needGroupMedia, options, disableMarkdown, asFiles, showCaptionAboveMedia, hasSpoiler);
       }
     }
 
@@ -1367,7 +1406,7 @@ public class MediaLayout extends FrameLayoutFix implements
     } else if (viewId == R.id.btn_mosaic) {
       setNeedGroupMedia(!needGroupMedia, true);
     } else if (viewId == R.id.btn_close) {
-      if (!getCurrentController().showExitWarning(true)) {
+      if (!getCurrentController().showExitWarning(true, true)) {
         cancelMultiSelection();
       }
     }
@@ -1607,6 +1646,14 @@ public class MediaLayout extends FrameLayoutFix implements
         themeListeners.addThemeFilterListener(hotMediaView, needSpoiler ? ColorId.iconActive : ColorId.icon);
       }
     }
+  }
+
+  public boolean showCaptionAboveMedia () {
+    return false; // TODO
+  }
+
+  public void setShowCaptionAboveMedia (boolean showCaptionAboveMedia) {
+    // TODO
   }
 
   private @Nullable TdApi.Chat getTargetChat () {

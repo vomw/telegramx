@@ -67,7 +67,7 @@ import me.vkryl.android.widget.FrameLayoutFix;
 import me.vkryl.core.MathUtils;
 import me.vkryl.core.StringUtils;
 import me.vkryl.core.lambda.CancellableRunnable;
-import me.vkryl.td.ChatId;
+import tgx.td.ChatId;
 
 public class MediaBottomLocationController extends MediaBottomBaseController<Void> implements View.OnClickListener, MediaLocationMapView.Callback, MediaLocationFinder.Callback, ActivityResultHandler, Menu, FactorAnimator.Target {
   public MediaBottomLocationController (MediaLayout context) {
@@ -112,8 +112,8 @@ public class MediaBottomLocationController extends MediaBottomBaseController<Voi
   }
 
   @Override
-  public boolean onBackPressed (boolean fromTop) {
-    return (mapAnimator != null && mapAnimator.isAnimating()) || super.onBackPressed(fromTop);
+  public boolean performOnBackPressed (boolean fromTop, boolean commit) {
+    return (mapAnimator != null && mapAnimator.isAnimating()) || super.performOnBackPressed(fromTop, commit);
   }
 
   @Override

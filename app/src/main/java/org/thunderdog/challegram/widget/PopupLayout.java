@@ -43,6 +43,7 @@ import org.thunderdog.challegram.navigation.ActivityResultHandler;
 import org.thunderdog.challegram.navigation.BackListener;
 import org.thunderdog.challegram.navigation.HeaderView;
 import org.thunderdog.challegram.navigation.MenuMoreWrap;
+import org.thunderdog.challegram.navigation.MenuMoreWrapAbstract;
 import org.thunderdog.challegram.navigation.OptionsLayout;
 import org.thunderdog.challegram.navigation.RootDrawable;
 import org.thunderdog.challegram.navigation.TooltipOverlayView;
@@ -226,8 +227,8 @@ public class PopupLayout extends RootFrameLayout implements FactorAnimator.Targe
 
   private ViewController<?> boundController;
 
-  public boolean onBackPressed (boolean byHeaderBackPress) {
-    return (backListener != null && backListener.onBackPressed(byHeaderBackPress)) || (boundController != null && boundController.onBackPressed(false)) || (boundView != null && boundView instanceof BackListener && ((BackListener) boundView).onBackPressed(byHeaderBackPress));
+  public boolean performOnBackPressed (boolean byHeaderBackPress, boolean commit) {
+    return (backListener != null && backListener.onBackPressed(byHeaderBackPress, commit)) || (boundController != null && boundController.performOnBackPressed(false, commit)) || (boundView != null && boundView instanceof BackListener && ((BackListener) boundView).onBackPressed(byHeaderBackPress, commit));
   }
 
   public void setBoundController (ViewController<?> boundController) {
@@ -297,7 +298,7 @@ public class PopupLayout extends RootFrameLayout implements FactorAnimator.Targe
       View rootView = window.getContentView().getRootView();
       ViewGroup.LayoutParams layoutParams = rootView.getLayoutParams();
       boolean disallowScreenShots = shouldDisallowScreenshots();
-      if (!(layoutParams instanceof WindowManager.LayoutParams)) {
+      if (!(layoutParams instanceof WindowManager.LayoutParams) || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT && !rootView.isAttachedToWindow())) {
         // TODO: analyze in what situations container parameters become `android.widget.FrameLayout$LayoutParams`
         // after that, uncomment code below, if it's caused by root view, not by window detachment
         /*int windowFlags =
@@ -524,7 +525,7 @@ public class PopupLayout extends RootFrameLayout implements FactorAnimator.Targe
     return boundView;
   }
 
-  public void showMoreView (MenuMoreWrap menuWrap) {
+  public void showMoreView (MenuMoreWrapAbstract menuWrap) {
     if (menuWrap == null) {
       throw new IllegalArgumentException();
     }
@@ -560,7 +561,7 @@ public class PopupLayout extends RootFrameLayout implements FactorAnimator.Targe
   }
 
   private void hideMoreWrap () {
-    MenuMoreWrap menuWrap = (MenuMoreWrap) getContentChild();
+    MenuMoreWrapAbstract menuWrap = (MenuMoreWrapAbstract) getContentChild();
 
     if (menuWrap == null) {
       return;
@@ -689,7 +690,7 @@ public class PopupLayout extends RootFrameLayout implements FactorAnimator.Targe
             }
           };
 
-          MenuMoreWrap menuWrap = (MenuMoreWrap) getContentChild();
+          MenuMoreWrapAbstract menuWrap = (MenuMoreWrapAbstract) getContentChild();
 
           if (menuWrap == null) {
             return;
@@ -829,7 +830,7 @@ public class PopupLayout extends RootFrameLayout implements FactorAnimator.Targe
     animator.animateTo(toFactor);
   }
 
-  private View getContentChild () {
+  public View getContentChild () {
     int count = getChildCount();
     for (int i = 0; i < count; i++) {
       View view = getChildAt(i);
@@ -921,6 +922,7 @@ public class PopupLayout extends RootFrameLayout implements FactorAnimator.Targe
         } else if (finalFactor == 1f) {
           onCustomShowComplete();
         }
+        UI.getContext(getContext()).notifyBackPressAvailabilityChanged();
         break;
       }
     }

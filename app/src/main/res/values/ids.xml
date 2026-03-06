@@ -101,7 +101,8 @@
   <item type="id" name="more_btn_addMember" />
   <item type="id" name="more_btn_editDescription" />
   <item type="id" name="more_btn_join" />
-  <item type="id" name="more_btn_archiveUnarchive" />
+  <item type="id" name="more_btn_archive" />
+  <item type="id" name="more_btn_unarchive" />
   <item type="id" name="more_btn_selectAll" />
   <item type="id" name="more_btn_markAsRead" />
   <item type="id" name="more_btn_report" />
@@ -139,6 +140,7 @@
   <item type="id" name="controller_linkChat" />
   <item type="id" name="controller_enabledReactions"/>
   <item type="id" name="controller_deleteAccount"/>
+  <item type="id" name="controller_waitForPremium"/>
 
   <item type="id" name="controller_setEmojiStatusPager" />
 
@@ -245,6 +247,7 @@
   <item type="id" name="controller_sponsoredMessagesInfo" />
   <item type="id" name="controller_featureToggles" />
   <item type="id" name="controller_chatFolders" />
+  <item type="id" name="controller_chatFoldersFeature" />
   <item type="id" name="controller_editChatFolderInviteLink" />
   <item type="id" name="controller_chatFolderInviteLink" />
   <item type="id" name="controller_editChatFolders" />
@@ -293,6 +296,7 @@
 
   <item type="id" name="btn_double" />
   <item type="id" name="btn_date" />
+  <item type="id" name="btn_buyPremium" />
   <item type="id" name="input_customTitle" />
   <item type="id" name="avatar" />
   <item type="id" name="chat" />
@@ -330,7 +334,6 @@
 
   <item type="id" name="btn_pinUnpinChat" />
   <item type="id" name="btn_unpinAll" />
-  <item type="id" name="btn_reportLocation" />
   <item type="id" name="btn_archiveUnarchiveChat" />
   <item type="id" name="btn_pinChat" />
   <item type="id" name="btn_unpinChat" />
@@ -416,6 +419,7 @@
   <item type="id" name="btn_addContact" />
   <item type="id" name="btn_inviteLink" />
   <item type="id" name="btn_toggleSignatures" />
+  <item type="id" name="btn_toggleShowAuthors" />
   <item type="id" name="btn_toggleJoinByRequest" />
   <item type="id" name="btn_toggleProtection" />
   <item type="id" name="btn_togglePermission" />
@@ -484,6 +488,7 @@
   <item type="id" name="btn_unmute" />
   <item type="id" name="btn_follow" />
   <item type="id" name="btn_openLinkedChat" />
+  <item type="id" name="btn_openDirectMessages" />
   <item type="id" name="btn_restartTdlib" />
   <item type="id" name="btn_chatSettings" />
   <item type="id" name="btn_devices" />
@@ -559,6 +564,7 @@
   <item type="id" name="btn_closeCall" />
   <item type="id" name="btn_declineCall" />
   <item type="id" name="btn_lastSeen" />
+  <item type="id" name="btn_newChatsPrivacy" />
   <item type="id" name="btn_privacyRule" />
   <item type="id" name="btn_extraPrivacyRule" />
   <item type="id" name="btn_forwardLink" />
@@ -590,9 +596,9 @@
   <item type="id" name="btn_passcodeType_password" />
   <item type="id" name="btn_passcodeType_pattern" />
   <item type="id" name="btn_passcodeType_gesture" />
-  <item type="id" name="btn_passcodeType_fingerprint" />
+  <item type="id" name="btn_passcodeType_biometrics" />
   <item type="id" name="btn_pattern" />
-  <item type="id" name="btn_fingerprint" />
+  <item type="id" name="btn_biometrics" />
   <item type="id" name="btn_screenCapture" />
   <item type="id" name="btn_notificationContent" />
   <item type="id" name="btn_passcode_change" />
@@ -713,6 +719,7 @@
   <item type="id" name="btn_useInAppBrowser" />
   <item type="id" name="btn_switchRtl" />
   <item type="id" name="btn_debugSwitchRtl" />
+  <item type="id" name="btn_debugLtrEmoji" />
   <item type="id" name="btn_mediaWiFiLimits" />
   <item type="id" name="btn_mediaRoamingLimits" />
   <item type="id" name="btn_stopAllLiveLocations" />
@@ -788,6 +795,7 @@
   <item type="id" name="btn_underline" />
   <item type="id" name="btn_monospace" />
   <item type="id" name="btn_link" />
+  <item type="id" name="btn_quote" />
   <item type="id" name="btn_inlinePlayPause" />
   <item type="id" name="btn_inlineClose" />
   <item type="id" name="btn_inlineOpen" />
@@ -797,6 +805,7 @@
   <item type="id" name="btn_sourceCodeChanges" />
   <item type="id" name="btn_copyDebug" />
   <item type="id" name="btn_pasteText" />
+  <item type="id" name="btn_pasteUrl" />
   <item type="id" name="btn_copyUsername" />
   <item type="id" name="btn_editUsername" />
   <item type="id" name="btn_openLink" />
@@ -890,7 +899,9 @@
   <item type="id" name="btn_1month" />
   <item type="id" name="btn_3months" />
   <item type="id" name="btn_6month" />
-  <item type="id" name="btn_1year" />
+  <item type="id" name="btn_12months" />
+  <item type="id" name="btn_18months" />
+  <item type="id" name="btn_24months" />
   <item type="id" name="btn_setPassword" />
   <item type="id" name="btn_changePassword" />
   <item type="id" name="btn_disablePassword" />
@@ -969,6 +980,7 @@
   <item type="id" name="btn_secret_disableNetwork" />
   <item type="id" name="btn_secret_tdlibDatabaseStats" />
   <item type="id" name="btn_secret_databaseStats" />
+  <item type="id" name="btn_secret_attest" />
   <item type="id" name="btn_secret_stressTest" />
   <item type="id" name="btn_secret_tgcalls" />
   <item type="id" name="btn_secret_tgcallsOptions" />
@@ -978,6 +990,7 @@
   <item type="id" name="btn_secret_deleteProfilePhoto" />
   <item type="id" name="btn_secret_forceTcpInCalls" />
   <item type="id" name="btn_secret_forceTdlibRestarts" />
+  <item type="id" name="btn_secret_testPrompts" />
   <item type="id" name="btn_secret_dropHidden" />
   <item type="id" name="btn_secret_disableQrProcess" />
   <item type="id" name="btn_secret_debugQrRegions" />
@@ -1015,6 +1028,8 @@
 
   <item type="id" name="btn_tdlib" />
   <item type="id" name="btn_webrtc" />
+  <item type="id" name="btn_ffmpeg" />
+  <item type="id" name="btn_webp" />
   <item type="id" name="btn_tgcalls" />
   <item type="id" name="btn_pushService" />
   <item type="id" name="btn_tdlib_verbosity" />
@@ -1036,6 +1051,7 @@
   <item type="id" name="reactions_enabled_classic" />
   <item type="id" name="reactions_enabled" />
   <item type="id" name="reactions_premium_locked" />
+  <item type="id" name="reactions_limit" />
 
   <item type="id" name="theme_chat" />
   <item type="id" name="theme_chat_modern" />
@@ -1392,4 +1408,11 @@
   <item type="id" name="btn_convertToBroadcastGroup" />
   <item type="id" name="btn_confirmConvertBroadcast" />
   <item type="id" name="btn_convertBroadcastGroup" />
+
+  <item type="id" name="btn_playback_speed_0_5" />
+  <item type="id" name="btn_playback_speed_0_7" />
+  <item type="id" name="btn_playback_speed_1_0" />
+  <item type="id" name="btn_playback_speed_1_2" />
+  <item type="id" name="btn_playback_speed_1_5" />
+  <item type="id" name="btn_playback_speed_2_0" />
 </resources>

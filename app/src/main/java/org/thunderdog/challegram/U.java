@@ -82,20 +82,36 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.os.EnvironmentCompat;
 import androidx.exifinterface.media.ExifInterface;
+import androidx.media3.common.C;
+import androidx.media3.common.Format;
+import androidx.media3.common.MediaLibraryInfo;
+import androidx.media3.common.MimeTypes;
 import androidx.media3.common.PlaybackException;
+import androidx.media3.common.util.Clock;
+import androidx.media3.common.util.TimestampAdjuster;
+import androidx.media3.datasource.ByteArrayDataSource;
+import androidx.media3.datasource.DataSource;
 import androidx.media3.datasource.FileDataSource;
 import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.ExoPlaybackException;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.RenderersFactory;
+import androidx.media3.exoplayer.analytics.AnalyticsCollector;
+import androidx.media3.exoplayer.analytics.DefaultAnalyticsCollector;
+import androidx.media3.exoplayer.analytics.PlayerId;
+import androidx.media3.exoplayer.hls.DefaultHlsExtractorFactory;
+import androidx.media3.exoplayer.hls.HlsExtractorFactory;
+import androidx.media3.exoplayer.hls.HlsMediaChunkExtractor;
+import androidx.media3.exoplayer.hls.HlsMediaSource;
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
 import androidx.media3.exoplayer.source.MediaSource;
-import androidx.media3.exoplayer.source.MediaSourceFactory;
 import androidx.media3.exoplayer.source.ProgressiveMediaSource;
 import androidx.media3.exoplayer.source.UnrecognizedInputFormatException;
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector;
+import androidx.media3.exoplayer.util.EventLogger;
 import androidx.media3.extractor.DefaultExtractorsFactory;
+import androidx.media3.extractor.ExtractorInput;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.gms.common.ConnectionResult;
@@ -112,21 +128,23 @@ import org.thunderdog.challegram.loader.ImageLoader;
 import org.thunderdog.challegram.loader.ImageReader;
 import org.thunderdog.challegram.loader.ImageStrictCache;
 import org.thunderdog.challegram.mediaview.data.MediaItem;
+import org.thunderdog.challegram.telegram.RandomAccessDataSource;
 import org.thunderdog.challegram.telegram.Tdlib;
 import org.thunderdog.challegram.telegram.TdlibDataSource;
 import org.thunderdog.challegram.telegram.TdlibDelegate;
+import org.thunderdog.challegram.telegram.TdlibFilesManager;
 import org.thunderdog.challegram.telegram.TdlibNotificationChannelGroup;
 import org.thunderdog.challegram.telegram.TdlibNotificationManager;
 import org.thunderdog.challegram.tool.Fonts;
 import org.thunderdog.challegram.tool.Intents;
 import org.thunderdog.challegram.tool.Screen;
-import org.thunderdog.challegram.tool.Strings;
 import org.thunderdog.challegram.tool.TGMimeType;
 import org.thunderdog.challegram.tool.UI;
 import org.thunderdog.challegram.ui.TextController;
 import org.thunderdog.challegram.util.AppBuildInfo;
 import org.thunderdog.challegram.util.Permissions;
 import org.thunderdog.challegram.util.text.TextReplacementSpan;
+import org.thunderdog.challegram.util.text.bidi.BiDiUtils;
 import org.thunderdog.challegram.widget.NoScrollTextView;
 
 import java.io.BufferedReader;
@@ -160,6 +178,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.zip.GZIPInputStream;
 
 import javax.microedition.khronos.egl.EGL10;
@@ -178,12 +197,14 @@ import me.vkryl.core.collection.LongList;
 import me.vkryl.core.lambda.RunnableBool;
 import me.vkryl.core.lambda.RunnableData;
 import me.vkryl.core.util.LocalVar;
-import me.vkryl.td.Td;
 import okio.BufferedSink;
 import okio.BufferedSource;
 import okio.Okio;
 import okio.Sink;
 import okio.Source;
+import tgx.td.Td;
+import tgx.td.data.HlsPath;
+import tgx.td.data.HlsVideo;
 
 @SuppressWarnings ("JniMissingFunction")
 public class U {
@@ -481,30 +502,24 @@ public class U {
         throw new IllegalArgumentException("id == " + notificationId);
     }
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-      int knownType = android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_NONE;
       switch (notificationId) {
-        case TdlibNotificationManager.ID_MUSIC:
-          knownType = android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK;
-          break;
-        case TdlibNotificationManager.ID_LOCATION:
-          knownType = android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION;
-          break;
         case TdlibNotificationManager.ID_ONGOING_CALL_NOTIFICATION:
-        case TdlibNotificationManager.ID_INCOMING_CALL_NOTIFICATION:
-          knownType = android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL;
-          break;
-        case TdlibNotificationManager.ID_PENDING_TASK:
-          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            knownType = android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SHORT_SERVICE;
-          } else {
-            // FOREGROUND_SERVICE_TYPE_SHORT_SERVICE was added in Android 14.
-            knownType = android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MANIFEST;
+        case TdlibNotificationManager.ID_INCOMING_CALL_NOTIFICATION: {
+          int knownType = android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL;
+          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            knownType |= android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE;
           }
+          knownType |= android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK;
+          service.startForeground(notificationId, notification, knownType);
+          return;
+        }
+        case TdlibNotificationManager.ID_MUSIC:
+        case TdlibNotificationManager.ID_LOCATION:
+        case TdlibNotificationManager.ID_PENDING_TASK:
+          // android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MANIFEST;
           break;
-      }
-      if (knownType != android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_NONE) {
-        service.startForeground(notificationId, notification, knownType);
-        return;
+        default:
+          throw new UnsupportedOperationException(Integer.toString(notificationId));
       }
     }
     service.startForeground(notificationId, notification);
@@ -717,13 +732,25 @@ public class U {
     // new AdaptiveVideoTrackSelection.Factory(new DefaultBandwidthMeter())
     // DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
     // DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
-    final int extensionMode = preferExtensions || org.thunderdog.challegram.unsorted.Settings.instance().getNewSetting(org.thunderdog.challegram.unsorted.Settings.SETTING_FLAG_FORCE_EXO_PLAYER_EXTENSIONS) ? DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER : DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON;
+    final int extensionMode = preferExtensions || org.thunderdog.challegram.unsorted.Settings.instance().getNewSetting(org.thunderdog.challegram.unsorted.Settings.SETTING_FLAG_FORCE_EXO_PLAYER_EXTENSIONS) ?
+      DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER :
+      DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON;
     final RenderersFactory renderersFactory = new DefaultRenderersFactory(context).setExtensionRendererMode(extensionMode);
-    final MediaSourceFactory mediaSourceFactory = new DefaultMediaSourceFactory(context, new DefaultExtractorsFactory().setConstantBitrateSeekingEnabled(true));
-    return new ExoPlayer.Builder(context, renderersFactory, mediaSourceFactory)
+    final MediaSource.Factory mediaSourceFactory = new DefaultMediaSourceFactory(context, new DefaultExtractorsFactory().setConstantBitrateSeekingEnabled(true));
+    final AnalyticsCollector analyticsCollector;
+    if (BuildConfig.DEBUG) {
+      analyticsCollector = new DefaultAnalyticsCollector(Clock.DEFAULT);
+      analyticsCollector.addListener(new EventLogger("ExoPlayerImpl"));
+    } else {
+      analyticsCollector = null;
+    }
+    ExoPlayer.Builder b = new ExoPlayer.Builder(context, renderersFactory, mediaSourceFactory)
       .setTrackSelector(new DefaultTrackSelector(context))
-      .setLoadControl(new DefaultLoadControl())
-      .build();
+      .setLoadControl(new DefaultLoadControl());
+    if (analyticsCollector != null) {
+      b.setAnalyticsCollector(analyticsCollector);
+    }
+    return b.build();
   }
 
   public static boolean isUnsupportedFormat (PlaybackException e) {
@@ -739,25 +766,114 @@ public class U {
   }
 
   public static androidx.media3.common.MediaItem newMediaItem (Uri uri) {
-    return new androidx.media3.common.MediaItem.Builder().setUri(uri).build();
+    return androidx.media3.common.MediaItem.fromUri(uri);
   }
 
-  public static MediaSource newMediaSource (int accountId, TdApi.Message message) {
-    return newMediaSource(accountId, TD.getFile(message));
+  public static MediaSource newAudioMediaSource (int accountId, TdApi.Message message) {
+    TdApi.File file = TD.getFile(message);
+    long durationMs = TD.getDurationMs(message);
+    return newMediaSource(accountId, file, TdlibFilesManager.PRIORITY_STREAMING_AUDIO, TdlibDataSource.Flag.DOWNLOAD_FULLY, durationMs);
   }
 
-  public static MediaSource newMediaSource (int accountId, @Nullable TdApi.File file) {
+  public static MediaSource newMediaSource (int accountId, @Nullable HlsVideo hlsVideo) {
+    if (hlsVideo == null) {
+      throw new IllegalArgumentException();
+    }
+
+    Uri manifestUri = TdlibDataSource.UriFactory.create(accountId, -1);
+
+    TdlibDataSource.Factory factory = new TdlibDataSource.Factory(accountId, TdlibFilesManager.PRIORITY_STREAMING_VIDEO, new TdlibDataSource.RequestModifier() {
+      @Override
+      public Uri modifyUri (Uri sourceUri) {
+        String scheme = sourceUri.getScheme();
+        if (scheme == null) {
+          throw new IllegalArgumentException(sourceUri.toString());
+        }
+        switch (scheme) {
+          case HlsVideo.MTPROTO_SCHEME: {
+            long streamId = HlsVideo.extractStreamId(sourceUri);
+            int videoFileId = hlsVideo.findVideoFileIdByStreamId(streamId);
+            return TdlibDataSource.UriFactory.create(accountId, videoFileId, TdlibFilesManager.PRIORITY_STREAMING_HLS_VIDEO, TdlibDataSource.Flag.DOWNLOAD_PRECISELY, TimeUnit.SECONDS.toMillis(hlsVideo.video.duration));
+          }
+          case HlsVideo.SCHEME: {
+            HlsPath hlsPath = HlsPath.fromUri(sourceUri);
+            return TdlibDataSource.UriFactory.create(accountId, hlsPath.hlsFileId, TdlibFilesManager.PRIORITY_STREAMING_HLS_PLAYLIST, TdlibDataSource.Flag.DOWNLOAD_FULLY, 0);
+          }
+          default: {
+            return sourceUri;
+          }
+        }
+      }
+
+      @Nullable
+      @Override
+      public DataSource redirectDataSource (Uri uri) {
+        if (uri.equals(manifestUri)) {
+          String playlistData = hlsVideo.multivariantPlaylistData(
+            BuildConfig.DEBUG
+          );
+          return new ByteArrayDataSource(playlistData.getBytes());
+        }
+        return null;
+      }
+    });
+
+    return new HlsMediaSource.Factory(factory)
+      .setAllowChunklessPreparation(false)
+      .setExtractorFactory(newHlsExtractorFactory(hlsVideo))
+      .createMediaSource(newMediaItem(manifestUri));
+  }
+
+  @NonNull
+  private static HlsExtractorFactory newHlsExtractorFactory (@NonNull HlsVideo hlsVideo) {
+    DefaultHlsExtractorFactory defaultHlsExtractorFactory = new DefaultHlsExtractorFactory();
+    return new HlsExtractorFactory() {
+      @Override
+      @NonNull
+      public HlsMediaChunkExtractor createExtractor (@NonNull Uri uri, @NonNull Format format, @Nullable List<Format> muxedCaptionFormats, @NonNull TimestampAdjuster timestampAdjuster, @NonNull Map<String, List<String>> responseHeaders, @NonNull ExtractorInput sniffingExtractorInput, @NonNull PlayerId playerId) throws IOException {
+        if (HlsVideo.MTPROTO_SCHEME.equals(uri.getScheme())) {
+          long streamId = HlsVideo.extractStreamId(uri);
+          TdApi.AlternativeVideo alternativeVideo = hlsVideo.findVideoByStreamId(streamId);
+          format = format.buildUpon()
+            .setCodecs(alternativeVideo.codec)
+            .setWidth(alternativeVideo.width)
+            .setHeight(alternativeVideo.height)
+            .setContainerMimeType(MimeTypes.VIDEO_MP4)
+            .setCryptoType(C.CRYPTO_TYPE_UNSUPPORTED)
+            .build();
+          if (!timestampAdjuster.isInitialized()) {
+            try {
+              timestampAdjuster.sharedInitializeOrWait(true, 0, 0);
+            } catch (TimeoutException | InterruptedException ignored) { }
+          }
+        }
+        return defaultHlsExtractorFactory.createExtractor(uri, format, muxedCaptionFormats, timestampAdjuster, responseHeaders, sniffingExtractorInput, playerId);
+      }
+    };
+  }
+
+  public static MediaSource newMediaSource (int accountId, @Nullable TdApi.File file, int priority, @TdlibDataSource.Flag int flags, long durationMs) {
     if (file == null)
       throw new IllegalArgumentException();
+    Uri uri;
+    DataSource.Factory factory;
     if (file.id == -1 && !StringUtils.isEmpty(file.local.path)) {
-      return newMediaSource(new File(file.local.path));
+      uri = Uri.fromFile(new File(file.local.path));
+      factory = new FileDataSource.Factory();
     } else {
-      return new ProgressiveMediaSource.Factory(new TdlibDataSource.Factory()).createMediaSource(newMediaItem(TdlibDataSource.UriFactory.create(accountId, file)));
+      uri = TdlibDataSource.UriFactory.create(accountId, file, priority, flags, durationMs);
+      factory = new TdlibDataSource.Factory();
     }
+    androidx.media3.common.MediaItem media = newMediaItem(uri);
+    return new ProgressiveMediaSource.Factory(factory).createMediaSource(media);
+  }
+
+  public static MediaSource newMediaSource (RandomAccessFile file) {
+    return new ProgressiveMediaSource.Factory(new RandomAccessDataSource.Factory(file)).createMediaSource(newMediaItem(Uri.EMPTY));
   }
 
   public static MediaSource newMediaSource (int accountId, int fileId) {
-    return new ProgressiveMediaSource.Factory(new TdlibDataSource.Factory()).createMediaSource(newMediaItem(TdlibDataSource.UriFactory.create(accountId, fileId)));
+    return new ProgressiveMediaSource.Factory(new TdlibDataSource.Factory(accountId)).createMediaSource(newMediaItem(TdlibDataSource.UriFactory.create(accountId, fileId)));
   }
 
   public static boolean isGooglePlayServicesAvailable (Context context) {
@@ -1155,7 +1271,15 @@ public class U {
   }
 
   public static void openFile (TdlibDelegate context, TdApi.Video video) {
-    openFile(context, StringUtils.isEmpty(video.fileName) ? ("video/mp4".equals(video.mimeType) ? "video.mp4" : "video/quicktime".equals(video.mimeType) ? "video.mov" : "") : video.fileName, new File(video.video.local.path), video.mimeType, 0);
+    String displayName = StringUtils.isEmpty(video.fileName) ? ("video/mp4".equals(video.mimeType) ? "video.mp4" : "video/quicktime".equals(video.mimeType) ? "video.mov" : "") : video.fileName;
+    String mimeType = video.mimeType;
+    openFile(context, displayName, new File(video.video.local.path), mimeType, 0);
+  }
+
+  public static void openFile (TdlibDelegate context, TdApi.Animation animation) {
+    String displayName = StringUtils.isEmpty(animation.fileName) ? ("video/mp4".equals(animation.mimeType) ? "animation.mp4" : "video/quicktime".equals(animation.mimeType) ? "animation.mov" : "") : animation.fileName;
+    String mimeType = animation.mimeType;
+    openFile(context, displayName, new File(animation.animation.local.path), mimeType, 0);
   }
 
   public static Uri getUri (Parcelable parcelable) {
@@ -1193,11 +1317,12 @@ public class U {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
       return ValueAnimator.getDurationScale();
     }
-    try {
-      return Settings.Global.getFloat(context.getContentResolver(), Settings.Global.ANIMATOR_DURATION_SCALE, 1.0f);
-    } catch (Throwable ignored) {
-      return 1.0f;
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+      try {
+        return Settings.Global.getFloat(context.getContentResolver(), Settings.Global.ANIMATOR_DURATION_SCALE, 1.0f);
+      } catch (Throwable ignored) { }
     }
+    return 1.0f;
   }
   public static String getDataColumn(Context context, Uri uri, String selection, String[] selectionArgs) {
     final String column = "_data";
@@ -1848,7 +1973,7 @@ public class U {
     return successCount == innerFiles.length && fromDir.delete();
   }
 
-  private static boolean moveFile (File fromFile, File toFile) {
+  public static boolean moveFile (File fromFile, File toFile) {
     if (fromFile.renameTo(toFile)) {
       return true;
     }
@@ -2149,7 +2274,7 @@ public class U {
       return 0;
     }
 
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+    if (Config.USE_TEXT_ADVANCE && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !BiDiUtils.requiresBidi(in, start, end)) {
       /*
       getTextRunAdvances(char[] chars, int index, int count,
             int contextIndex, int contextCount, boolean isRtl, float[] advances,
@@ -2278,6 +2403,33 @@ public class U {
     }
   }*/
 
+  public static float measureTextRun (@Nullable CharSequence in, @NonNull Paint p, boolean isRtl) {
+    final int count;
+    if (in == null || (count = in.length()) == 0) {
+      return 0;
+    }
+
+    if (Config.USE_TEXT_ADVANCE && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+      return p.getRunAdvance(in, 0, count, 0, in.length(), isRtl, count);
+    }
+
+    return measureText(in, p);
+  }
+
+  public static float measureTextRun (@Nullable CharSequence in, int start, int end, @NonNull Paint p, boolean isRtl) {
+    final int count = end - start;
+
+    if (in == null || in.length() == 0 || count <= 0) {
+      return 0;
+    }
+
+    if (Config.USE_TEXT_ADVANCE && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+      return p.getRunAdvance(in, start, end, 0, in.length(), isRtl, end);
+    }
+
+    return measureText(in, start, end, p);
+  }
+
   public static float measureText (@Nullable CharSequence in, int start, int end, @NonNull Paint p) {
     final int count = end - start;
 
@@ -2288,7 +2440,7 @@ public class U {
     if (p == null)
       throw new IllegalArgumentException();
 
-    if (Config.USE_TEXT_ADVANCE && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Strings.getTextDirection(in, start, end) != Strings.DIRECTION_RTL) {
+    if (Config.USE_TEXT_ADVANCE && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !BiDiUtils.requiresBidi(in, start, end)) {
       return p.getRunAdvance(in, start, end, 0, in.length(), false, end);
     } else {
       float[] widths = pickWidths(count, true);
@@ -2394,12 +2546,16 @@ public class U {
 
   public static String getUsefulMetadata (@Nullable Tdlib tdlib) {
     AppBuildInfo buildInfo = org.thunderdog.challegram.unsorted.Settings.instance().getCurrentBuildInformation();
-    String locale = UI.getAppContext().getResources().getConfiguration().locale.toString();
+    String locale = Lang.getConfigurationLocale().toString();
     String appLocale = Lang.locale().toString();
     String metadata = Lang.getAppBuildAndVersion(tdlib) + " (" + BuildConfig.COMMIT + ")\n" +
       (!buildInfo.getPullRequests().isEmpty() ? "PRs: " + buildInfo.pullRequestsList() + "\n" : "") +
+      (!"none".equals(BuildConfig.TGX_EXTENSION) ? "Extension: " + BuildConfig.TGX_EXTENSION + "\n" : "") +
+      (!BuildConfig.LATEST_FLAVOR ? ("flavor: " + BuildConfig.FLAVOR_SDK + "\n") : "") +
       "TDLib: " + Td.tdlibVersion() + " (tdlib/td@" + Td.tdlibCommitHash() + ")\n" +
+      "androidx-media3: " + MediaLibraryInfo.VERSION + " [" + MediaLibraryInfo.registeredModules().replaceAll("(?<=^| )media3\\.", "") + "]\n" +
       "tgcalls: TGX-Android/tgcalls@" + BuildConfig.TGCALLS_COMMIT + "\n" +
+      "Recaptcha: " + BuildConfig.RECAPTCHA_VERSION + "\n" +
       "WebRTC: TGX-Android/webrtc@" + BuildConfig.WEBRTC_COMMIT + "\n" +
       "Android: " + SdkVersion.getPrettyName() + " (" + Build.VERSION.SDK_INT + ")" + "\n" +
       "Device: " + Build.MANUFACTURER + " " + Build.BRAND + " " + Build.MODEL + " (" + Build.DISPLAY + ")\n" +
@@ -2550,7 +2706,7 @@ public class U {
 
   public static Locale getDisplayLocaleOfSubtypeLocale (@NonNull final String localeString) {
     if (NO_LANGUAGE.equals(localeString)) {
-      return UI.getResources().getConfiguration().locale;
+      return Lang.getPrimaryLocale(UI.getResources().getConfiguration());
     }
     return constructLocaleFromString(localeString);
   }
@@ -2561,16 +2717,7 @@ public class U {
       // TODO: Should this be Locale.ROOT?
       return null;
     }
-    final String[] localeParams = localeStr.split("_", 3);
-    if (localeParams.length == 1) {
-      return new Locale(localeParams[0]);
-    } else if (localeParams.length == 2) {
-      return new Locale(localeParams[0], localeParams[1]);
-    } else if (localeParams.length == 3) {
-      return new Locale(localeParams[0], localeParams[1], localeParams[2]);
-    }
-    // TODO: Should return Locale.ROOT instead of null?
-    return null;
+    return Lang.obtainLocale(localeStr);
   }
 
   public static @Nullable Bitmap tryDecodeVideoThumb (String path, long timeUs, int dstWidth, int dstHeight, @Nullable int[] rotation) {
@@ -3462,6 +3609,16 @@ public class U {
     }
   }
 
+  public static int getStreamVolume (int stream) {
+    final AudioManager audioManager = (AudioManager) UI.getContext().getSystemService(Context.AUDIO_SERVICE);
+    return audioManager.getStreamVolume(stream);
+  }
+
+  public static void adjustStreamVolume (int stream, int volume, int flags) {
+    final AudioManager audioManager = (AudioManager) UI.getContext().getSystemService(Context.AUDIO_SERVICE);
+    audioManager.adjustStreamVolume(stream, volume, flags);
+  }
+
   // ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION opened, but the permission is still not granted. Ignore until the app restarts.
 
   public static boolean canReadFile (String url) {
@@ -3473,6 +3630,7 @@ public class U {
     }
   }
 
+  @SuppressWarnings("try")
   public static boolean canReadContentUri (Uri uri) {
     try (InputStream ignored = openInputStream(uri.toString())) {
       return true;
@@ -3556,6 +3714,14 @@ public class U {
     return false;
   }
 
+  public static boolean setRect (Rect rect, int left, int top, int right, int bottom) {
+    if (rect.left != left || rect.top != top || rect.right != right || rect.bottom != bottom) {
+      rect.set(left, top, right, bottom);
+      return true;
+    }
+    return false;
+  }
+
   public static String[] getInputLanguages () {
     final List<String> inputLanguages = new ArrayList<>();
     InputMethodManager imm = (InputMethodManager) UI.getAppContext().getSystemService(Context.INPUT_METHOD_SERVICE);
@@ -3620,7 +3786,7 @@ public class U {
               inputLanguages.add(code);
           }
         } else {
-          String code = LocaleUtils.toBcp47Language(Resources.getSystem().getConfiguration().locale);
+          String code = LocaleUtils.toBcp47Language(Lang.getPrimaryLocale(Resources.getSystem().getConfiguration()));
           if (!StringUtils.isEmpty(code)) {
             inputLanguages.add(code);
           }
@@ -3642,12 +3808,18 @@ public class U {
           return languageTag;
         }
       }
-      String locale = ims.getLocale();
-      if (!StringUtils.isEmpty(locale)) {
-        Locale l = U.getDisplayLocaleOfSubtypeLocale(locale);
-        if (l != null) {
-          return LocaleUtils.toBcp47Language(l);
-        }
+      return toLanguageCodePreNougat(ims);
+    }
+    return null;
+  }
+
+  @SuppressWarnings("deprecation")
+  private static String toLanguageCodePreNougat (InputMethodSubtype ims) {
+    String locale = ims.getLocale();
+    if (!StringUtils.isEmpty(locale)) {
+      Locale l = U.getDisplayLocaleOfSubtypeLocale(locale);
+      if (l != null) {
+        return LocaleUtils.toBcp47Language(l);
       }
     }
     return null;
@@ -3717,5 +3889,23 @@ public class U {
     } else {
       return Build.CPU_ABI;
     }
+  }
+
+  public static String getPreferredAbiFlavor () {
+    final String abi = U.getCpuAbi();
+    final String flavor = switch (abi) {
+      case "arm64-v8a" -> "arm64";
+      case "armeabi-v7a" -> "arm32";
+      case "x86" -> "x86";
+      case "x86_64", "x64" -> "x64";
+      default -> null;
+    };
+    if (flavor == null) {
+      String[] flavors = new String[] {"arm64", "arm32", "x86", "x64"};
+      if (ArrayUtils.contains(flavors, BuildConfig.FLAVOR_ABI)) {
+        return BuildConfig.FLAVOR_ABI;
+      }
+    }
+    return flavor;
   }
 }

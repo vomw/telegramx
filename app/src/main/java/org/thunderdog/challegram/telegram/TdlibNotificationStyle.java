@@ -78,8 +78,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import me.leolin.shortcutbadger.ShortcutBadger;
 import me.vkryl.core.StringUtils;
-import me.vkryl.td.ChatId;
-import me.vkryl.td.Td;
+import tgx.td.ChatId;
+import tgx.td.Td;
 
 public class TdlibNotificationStyle implements TdlibNotificationStyleDelegate, FileUpdateListener {
   private static final boolean USE_GROUPS = Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP;
@@ -261,7 +261,7 @@ public class TdlibNotificationStyle implements TdlibNotificationStyleDelegate, F
     final long chatId = group.getChatId();
     final TdApi.Chat chat = tdlib.chatSync(chatId, CHAT_MAX_DELAY);
     if (chat == null) {
-      Log.e(Log.TAG_FCM, "Doing nothing with the notification for chat %d, because it is no longer accessible");
+      TDLib.Tag.notifications( "Doing nothing with the notification for chat %d, because it is no longer accessible");
       // manager.cancel(notificationId);
       return DISPLAY_STATE_FAIL;
     }
@@ -324,7 +324,7 @@ public class TdlibNotificationStyle implements TdlibNotificationStyleDelegate, F
         if (!TD.isFileLoaded(file)) {
           cloudReferences = new ArrayList<>(1);
           cloudReferences.add(file);
-          tdlib.files().addCloudReference(file, this, true);
+          tdlib.files().addCloudReference(file, TdlibFilesManager.PRIORITY_NOTIFICATION_MEDIA, this, true);
         }
       }
     }
@@ -504,7 +504,7 @@ public class TdlibNotificationStyle implements TdlibNotificationStyleDelegate, F
 
       if (photoFile != null) {
         if (!isRebuild) {
-          downloadFile(photoFile, TdlibNotificationStyle.MEDIA_LOAD_TIMEOUT);
+          downloadFile(photoFile, TdlibFilesManager.PRIORITY_NOTIFICATION_MEDIA, TdlibNotificationStyle.MEDIA_LOAD_TIMEOUT);
         }
         if (TD.isFileLoaded(photoFile)) {
           Bitmap result = null;
@@ -597,7 +597,7 @@ public class TdlibNotificationStyle implements TdlibNotificationStyleDelegate, F
           behavior = needNotification ? NotificationCompat.GROUP_ALERT_CHILDREN : NotificationCompat.GROUP_ALERT_SUMMARY;
         }
         builder.setGroupAlertBehavior(behavior);
-        Log.i(Log.TAG_FCM, "displaying notification with behavior:%d", behavior);
+        TDLib.Tag.notifications("displaying notification with behavior:%d", behavior);
       }
     } else {
       builder = new NotificationCompat.Builder(UI.getAppContext());
@@ -915,10 +915,10 @@ public class TdlibNotificationStyle implements TdlibNotificationStyleDelegate, F
     }
   }
 
-  private void downloadFile (TdApi.File file, long timeout) {
+  private void downloadFile (TdApi.File file, int priority, long timeout) {
     CancellationSignal cancellationSignal = new CancellationSignal();
     pendingDownloadOperations.offer(cancellationSignal);
-    tdlib.files().downloadFileSync(file, timeout, null, null, cancellationSignal);
+    tdlib.files().downloadFileSync(file, priority, timeout, null, null, cancellationSignal);
     pendingDownloadOperations.remove(cancellationSignal);
   }
 
@@ -930,7 +930,7 @@ public class TdlibNotificationStyle implements TdlibNotificationStyleDelegate, F
       TdlibNotificationMediaFile file = TdlibNotificationMediaFile.newFile(tdlib, chat, notification.getNotificationContent());
       if (file != null) {
         if (!isRebuild) {
-          downloadFile(file.file, loadTimeout);
+          downloadFile(file.file, TdlibFilesManager.PRIORITY_NOTIFICATION_MEDIA, loadTimeout);
         }
         if (TD.isFileLoaded(file.file)) {
           Uri uri = null;
@@ -944,13 +944,13 @@ public class TdlibNotificationStyle implements TdlibNotificationStyleDelegate, F
                 GenerationInfo.TYPE_LOTTIE_STICKER_PREVIEW :
                 GenerationInfo.TYPE_VIDEO_STICKER_PREVIEW, 0),
               new TdApi.FileTypeSticker(),
-              32
+              TdlibFilesManager.PRIORITY_NOTIFICATION_MEDIA
             ), result -> {
               switch (result.getConstructor()) {
                 case TdApi.File.CONSTRUCTOR: {
                   TdApi.File uploadingFile = (TdApi.File) result;
                   tdlib.client().send(new TdApi.CancelPreliminaryUploadFile(uploadingFile.id), tdlib.okHandler());
-                  tdlib.client().send(new TdApi.DownloadFile(uploadingFile.id, 32, 0, 0, true), downloadedFile -> {
+                  tdlib.client().send(new TdApi.DownloadFile(uploadingFile.id, TdlibFilesManager.PRIORITY_NOTIFICATION_MEDIA, 0, 0, true), downloadedFile -> {
                     switch (downloadedFile.getConstructor()) {
                       case TdApi.File.CONSTRUCTOR: {
                         generatedFile.set((TdApi.File) downloadedFile);
@@ -1034,7 +1034,7 @@ public class TdlibNotificationStyle implements TdlibNotificationStyleDelegate, F
     long chatId = singleChatId != 0 ? singleChatId : lastNotification.group().getChatId();
     TdApi.Chat chat = tdlib.chatSync(chatId, CHAT_MAX_DELAY);
     if (chat == null) {
-      Log.e(Log.TAG_FCM, "Not displaying notification, because chat is inaccessible: %d", chatId);
+      TDLib.Tag.notifications("Not displaying notification, because chat is inaccessible: %d", chatId);
       return null;
     }
     int displayingChatsCount = singleChatId != 0 ? 1 : helper.calculateChatsCount(category);

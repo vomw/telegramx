@@ -38,6 +38,7 @@ import android.view.ViewParent;
 import android.view.animation.Interpolator;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
@@ -216,6 +217,15 @@ public class Views {
   @Deprecated
   public static int getParentsTop (View view, int limit) {
     return getParentsTop(view, limit, false);
+  }
+
+  @SuppressWarnings("deprecation")
+  public static int saveLayerAlpha (Canvas c, float left, float top, float right, float bottom, int alpha, int flags) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+      return c.saveLayerAlpha(left, top, right, bottom, alpha);
+    } else {
+      return c.saveLayerAlpha(left, top, right, bottom, alpha, flags);
+    }
   }
 
   private static int getParentsTop (View view, int limit, boolean includeTranslation) {
@@ -799,6 +809,19 @@ public class Views {
     }
   }
 
+  public static boolean applyBottomInset (ViewGroup viewGroup, int bottomInset) {
+    if (viewGroup != null) {
+      boolean changed = setPaddingBottom(viewGroup, bottomInset);
+      viewGroup.setClipToPadding(bottomInset == 0);
+      return changed;
+    }
+    return false;
+  }
+
+  public static int getAppliedBottomInset (ViewGroup viewGroup) {
+    return viewGroup != null ? viewGroup.getPaddingBottom() : 0;
+  }
+
   public static void removeRule (RelativeLayout.LayoutParams params, int verb) {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
       params.removeRule(verb);
@@ -809,6 +832,26 @@ public class Views {
 
   public static boolean setMargins (View view, int left, int top, int right, int bottom) {
     return view != null && setMargins((ViewGroup.MarginLayoutParams) view.getLayoutParams(), left, top, right, bottom);
+  }
+
+  @Nullable
+  @SuppressWarnings("unchecked")
+  public static <T extends View> T findAncestor (View view, Class<T> clazz, boolean root) {
+    if (view != null) {
+      T found = null;
+      ViewParent parent = view.getParent();
+      while (parent != null) {
+        if (clazz.isAssignableFrom(parent.getClass())) {
+          found = (T) parent;
+          if (!root) {
+            return found;
+          }
+        }
+        parent = parent.getParent();
+      }
+      return found;
+    }
+    return null;
   }
 
   public static void translateMarginsToPadding (View view) {
@@ -834,6 +877,18 @@ public class Views {
     return false;
   }
 
+  public static boolean setLayoutHeight (View view, int height) {
+    if (view != null) {
+      ViewGroup.LayoutParams params = view.getLayoutParams();
+      if (params != null && params.height != height) {
+        params.height = height;
+        view.setLayoutParams(params);
+        return true;
+      }
+    }
+    return false;
+  }
+
   public static void setTopMargin (View view, int margin) {
     if (view != null) {
       ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) view.getLayoutParams();
@@ -844,14 +899,31 @@ public class Views {
     }
   }
 
-  public static void setBottomMargin (View view, int margin) {
+  public static boolean setPaddingBottom (View view, int paddingBottom) {
+    if (view != null) {
+      int prevPaddingBottom = view.getPaddingBottom();
+      view.setPadding(view.getPaddingLeft(), view.getPaddingTop(), view.getPaddingRight(), paddingBottom);
+      return prevPaddingBottom != paddingBottom;
+    }
+    return false;
+  }
+
+  public static void setPaddingTop (View view, int paddingTop) {
+    if (view != null) {
+      view.setPadding(view.getPaddingLeft(), paddingTop, view.getPaddingRight(), view.getPaddingBottom());
+    }
+  }
+
+  public static boolean setBottomMargin (View view, int margin) {
     if (view != null) {
       ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) view.getLayoutParams();
       if (params.bottomMargin != margin) {
         params.bottomMargin = margin;
         view.setLayoutParams(params);
+        return true;
       }
     }
+    return false;
   }
 
   public static void setRightMargin (View view, int margin) {
@@ -874,11 +946,31 @@ public class Views {
     }
   }
 
+  public static int getLeftMargin (View view) {
+    if (view != null) {
+      ViewGroup.LayoutParams params = view.getLayoutParams();
+      if (params instanceof ViewGroup.MarginLayoutParams) {
+        return ((ViewGroup.MarginLayoutParams) params).leftMargin;
+      }
+    }
+    return 0;
+  }
+
   public static int getTopMargin (View view) {
     if (view != null) {
       ViewGroup.LayoutParams params = view.getLayoutParams();
       if (params instanceof ViewGroup.MarginLayoutParams) {
         return ((ViewGroup.MarginLayoutParams) params).topMargin;
+      }
+    }
+    return 0;
+  }
+
+  public static int getRightMargin (View view) {
+    if (view != null) {
+      ViewGroup.LayoutParams params = view.getLayoutParams();
+      if (params instanceof ViewGroup.MarginLayoutParams) {
+        return ((ViewGroup.MarginLayoutParams) params).rightMargin;
       }
     }
     return 0;
@@ -1008,5 +1100,17 @@ public class Views {
     }
 
     return -1;
+  }
+
+  public static int getLayoutGravity (@Nullable ViewGroup.LayoutParams params) {
+    if (params instanceof FrameLayout.LayoutParams) {
+      int gravity = ((FrameLayout.LayoutParams) params).gravity;
+      return gravity < 0 ? Gravity.TOP | Gravity.START : gravity;
+    }
+    if (params instanceof LinearLayout.LayoutParams) {
+      int gravity = ((LinearLayout.LayoutParams) params).gravity;
+      return gravity < 0 ? Gravity.NO_GRAVITY : gravity;
+    }
+    return Gravity.NO_GRAVITY;
   }
 }

@@ -66,7 +66,7 @@ import me.vkryl.android.ViewUtils;
 import me.vkryl.core.ColorUtils;
 import me.vkryl.core.MathUtils;
 import me.vkryl.core.StringUtils;
-import me.vkryl.td.Td;
+import tgx.td.Td;
 
 public class TGMessageLocation extends TGMessage implements LiveLocationManager.UserLocationChangeListener {
   private final TdApi.Location point;
@@ -439,12 +439,12 @@ public class TGMessageLocation extends TGMessage implements LiveLocationManager.
   }*/
 
   public boolean canStopAlive () {
-    return msg.canBeEdited && livePeriod > 0 && checkAlive(true);
+    return lastMessageProperties().canBeEdited && livePeriod > 0 && checkAlive(true);
   }
 
   public void stopLiveLocation () {
     if (canStopAlive()) {
-      tdlib.client().send(new TdApi.EditMessageLiveLocation(msg.chatId, msg.id, msg.replyMarkup, null, 0, 0), tdlib.silentHandler());
+      tdlib.client().send(new TdApi.EditMessageLiveLocation(msg.chatId, msg.id, msg.replyMarkup, null, 0, 0, 0), tdlib.silentHandler());
     }
   }
 
@@ -928,7 +928,7 @@ public class TGMessageLocation extends TGMessage implements LiveLocationManager.
             } else {
               args = new MapController.Args(point.latitude, point.longitude);
             }
-            args.setChatId(msg.chatId, messagesController().getMessageThreadId());
+            args.setChatId(msg.chatId, messagesController().getMessageTopicId());
             if (venue != null) {
               args.title = venue.title;
               args.address = venue.address;

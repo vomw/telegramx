@@ -81,7 +81,7 @@ import java.util.List;
 import me.vkryl.android.widget.FrameLayoutFix;
 import me.vkryl.core.StringUtils;
 import me.vkryl.core.collection.LongList;
-import me.vkryl.td.Td;
+import tgx.td.Td;
 
 public class ContactsController extends TelegramViewController<ContactsController.Args> implements OptionDelegate, BubbleHeaderView.Callback, TextWatcher, Runnable, Menu, Unlockable,
   TdlibCache.UserDataChangeListener, TdlibCache.UserStatusChangeListener, Comparator<TdApi.User> {
@@ -271,6 +271,17 @@ public class ContactsController extends TelegramViewController<ContactsControlle
     return mode == MODE_NEW_CHAT || mode == MODE_CALL;
   }
 
+  @Override
+  public boolean supportsBottomInset () {
+    return true;
+  }
+
+  @Override
+  protected void onBottomInsetChanged (int extraBottomInset, int extraBottomInsetWithoutIme, boolean isImeInset) {
+    super.onBottomInsetChanged(extraBottomInset, extraBottomInsetWithoutIme, isImeInset);
+    Views.applyBottomInset(recyclerView, extraBottomInset);
+  }
+
   @SuppressWarnings("ResourceType")
   @Override
   protected View onCreateView (Context context) {
@@ -278,6 +289,7 @@ public class ContactsController extends TelegramViewController<ContactsControlle
     ViewSupport.setThemedBackground(contentView, ColorId.filling, this);
 
     recyclerView = new SectionedRecyclerView(context);
+    Views.applyBottomInset(recyclerView, extraBottomInset);
     recyclerView.setSectionedAdapter(adapter = new ContactsAdapter(recyclerView, this));
     recyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
       @Override
@@ -700,8 +712,8 @@ public class ContactsController extends TelegramViewController<ContactsControlle
     } else {
       int nextSize = pickedBubbles.size() + 1;
       if (mode == MODE_NEW_GROUP) {
-        if (nextSize >= tdlib.supergroupMaxSize()) {
-          context.tooltipManager().builder(v).show(this, tdlib, R.drawable.baseline_error_24, Lang.pluralBold(R.string.ParticipantXLimitReached, tdlib.supergroupMaxSize()));
+        if (nextSize >= tdlib.supergroupSizeMax()) {
+          context.tooltipManager().builder(v).show(this, tdlib, R.drawable.baseline_error_24, Lang.pluralBold(R.string.ParticipantXLimitReached, tdlib.supergroupSizeMax()));
           return false;
         }
       }

@@ -1468,11 +1468,11 @@ public class CameraController extends ViewController<Void> implements CameraDele
     return m != null && m.isSecretChat();
   }
 
-  private boolean onSendMedia (ImageGalleryFile file, TdApi.MessageSendOptions options, boolean disableMarkdown, boolean asFiles, boolean hasSpoiler) {
+  private boolean onSendMedia (ImageGalleryFile file, TdApi.MessageSendOptions options, boolean disableMarkdown, boolean asFiles, boolean showCaptionAboveMedia, boolean hasSpoiler) {
     MessagesController m = findOutputController();
     if (m != null) {
       context.forceCloseCamera();
-      return m.sendPhotosAndVideosCompressed(new ImageGalleryFile[] {file}, false, options, disableMarkdown, asFiles, hasSpoiler);
+      return m.sendPhotosAndVideosCompressed(new ImageGalleryFile[] {file}, false, options, disableMarkdown, asFiles, showCaptionAboveMedia, hasSpoiler);
     }
     return false;
   }
@@ -1543,9 +1543,9 @@ public class CameraController extends ViewController<Void> implements CameraDele
         }
       }, sendDelegate != null ? sendDelegate : new MediaSpoilerSendDelegate() {
         @Override
-        public boolean sendSelectedItems (View view, ArrayList<ImageFile> images, TdApi.MessageSendOptions options, boolean disableMarkdown, boolean asFiles, boolean hasSpoiler) {
+        public boolean sendSelectedItems (View view, ArrayList<ImageFile> images, TdApi.MessageSendOptions options, boolean disableMarkdown, boolean asFiles, boolean showCaptionAboveMedia, boolean hasSpoiler) {
           ImageGalleryFile galleryFile = (ImageGalleryFile) images.get(0);
-          return onSendMedia(galleryFile, options, disableMarkdown, asFiles, hasSpoiler);
+          return onSendMedia(galleryFile, options, disableMarkdown, asFiles, showCaptionAboveMedia, hasSpoiler);
         }
       }, stack, m != null && m.areScheduledOnly()).setAvatarPickerMode(avatarPickerMode);
       if (m != null) {
@@ -1620,7 +1620,7 @@ public class CameraController extends ViewController<Void> implements CameraDele
       qrCodeListener.onQrCodeScanned(savedQrCodeData);
       savedQrCodeData = null;
       qrCodeConfirmed = true;
-      context.onBackPressed();
+      context.performBackPress(false);
     }
   }
 
@@ -1702,7 +1702,7 @@ public class CameraController extends ViewController<Void> implements CameraDele
     }
 
     if (isInQrScanMode()) {
-      context.onBackPressed();
+      context.performBackPress(false);
     } else if (canTakeSnapshot()) {
       manager.setTakingPhoto(true);
       if (flashMode == CameraFeatures.FEATURE_FLASH_OFF) {

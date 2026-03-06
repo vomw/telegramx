@@ -129,9 +129,9 @@ import me.vkryl.core.lambda.CancellableRunnable;
 import me.vkryl.core.lambda.Filter;
 import me.vkryl.core.lambda.RunnableBool;
 import me.vkryl.core.lambda.RunnableInt;
-import me.vkryl.td.ChatId;
-import me.vkryl.td.ChatPosition;
-import me.vkryl.td.Td;
+import tgx.td.ChatId;
+import tgx.td.ChatPosition;
+import tgx.td.Td;
 
 public class ChatsController extends TelegramViewController<ChatsController.Arguments> implements Menu,
   View.OnClickListener, View.OnLongClickListener, ChatsRecyclerView.LoadMoreCallback,
@@ -460,12 +460,23 @@ public class ChatsController extends TelegramViewController<ChatsController.Argu
 
   public TdlibChatListSlice list () {
     if (list == null) {
-      this.list = new TdlibChatListSlice(tdlib, chatList(), filter, false);
+      this.list = tdlib.chatList(chatList()).slice(filter);
     }
     return list;
   }
 
   private TdlibMessageViewer.Viewport chatsViewport;
+
+  @Override
+  public boolean supportsBottomInset () {
+    return true;
+  }
+
+  @Override
+  protected void onBottomInsetChanged (int extraBottomInset, int extraBottomInsetWithoutIme, boolean isImeInset) {
+    super.onBottomInsetChanged(extraBottomInset, extraBottomInsetWithoutIme, isImeInset);
+    Views.applyBottomInset(chatsView, extraBottomInset);
+  }
 
   @Override
   protected View onCreateView (Context context) {
@@ -482,6 +493,7 @@ public class ChatsController extends TelegramViewController<ChatsController.Argu
         adapter.notifyLastItemChanged();
       }
     });
+    Views.applyBottomInset(chatsView, extraBottomInset);
     chatsView.setItemAnimator(null);
     if (isInForceTouchMode()) {
       chatsView.setVerticalScrollBarEnabled(false);
@@ -711,7 +723,7 @@ public class ChatsController extends TelegramViewController<ChatsController.Argu
     }
 
     if (filter == null) {
-      liveLocationHelper = new LiveLocationHelper(this.context, tdlib, 0, 0, chatsView, true, this);
+      liveLocationHelper = new LiveLocationHelper(this.context, tdlib, 0, null, chatsView, true, this);
       liveLocationHelper.init();
     }
 
@@ -1268,7 +1280,7 @@ public class ChatsController extends TelegramViewController<ChatsController.Argu
       int canClearHistory = 0;
       for (int i = 0; i < selectedChats.size(); i++) {
         TdApi.Chat chat = selectedChats.valueAt(i);
-        if (tdlib.canArchiveChat(chatList(), chat)) {
+        if (tdlib.canArchiveOrUnarchiveChat(chat)) {
           if (ChatPosition.isArchived(chat)) {
             canUnarchive++;
           } else {
@@ -1300,7 +1312,7 @@ public class ChatsController extends TelegramViewController<ChatsController.Argu
       }
 
       if (canArchive + canUnarchive > 0) {
-        ids.append(R.id.more_btn_archiveUnarchive);
+        ids.append(canUnarchive > 0 ? R.id.more_btn_unarchive : R.id.more_btn_archive);
         strings.append(canUnarchive > 0 ? R.string.Unarchive : R.string.Archive);
         icons.append(canUnarchive > 0 ? R.drawable.baseline_unarchive_24 : R.drawable.baseline_archive_24);
       }
@@ -1670,11 +1682,13 @@ public class ChatsController extends TelegramViewController<ChatsController.Argu
       if (TD.isChatListFolder(chatList)) {
         int chatFolderId = ((TdApi.ChatListFolder) chatList).chatFolderId;
         long[] selectedChatIds = ArrayUtils.keys(selectedChats);
-        tdlib.removeChatsFromChatFolder(chatFolderId, selectedChatIds);
+        tdlib.ui().removeChatsFromChatFolder(chatFolderId, selectedChatIds);
       }
       onSelectionActionComplete();
       // break;
-    } else if (id == R.id.more_btn_archiveUnarchive ||
+    } else if (
+      id == R.id.more_btn_archive ||
+      id == R.id.more_btn_unarchive ||
       id == R.id.more_btn_markAsRead ||
       id == R.id.more_btn_markAsUnread ||
       id == R.id.more_btn_report ||
@@ -1682,8 +1696,9 @@ public class ChatsController extends TelegramViewController<ChatsController.Argu
       id == R.id.more_btn_unblock) {
       final int completeStr, count;
       int botCount = 0;
-      if (id == R.id.more_btn_archiveUnarchive) {
-        completeStr = chatList().getConstructor() == TdApi.ChatListArchive.CONSTRUCTOR ? R.string.UnarchivedXChats : R.string.ArchivedXChats;
+      if (id == R.id.more_btn_archive || id == R.id.more_btn_unarchive) {
+        boolean isUnarchive = id == R.id.more_btn_unarchive;
+        completeStr = isUnarchive ? R.string.UnarchivedXChats : R.string.ArchivedXChats;
         count = getSelectedChatCount();
       } else if (id == R.id.more_btn_markAsRead) {
         completeStr = R.string.ReadAllChatsDone;
@@ -1720,10 +1735,10 @@ public class ChatsController extends TelegramViewController<ChatsController.Argu
           simpleActionId = R.id.btn_markChatAsUnread;
         } else if (id == R.id.more_btn_markAsRead) {
           simpleActionId = R.id.btn_markChatAsRead;
-        } else if (id == R.id.more_btn_archiveUnarchive) {
+        } else if (id == R.id.more_btn_archive || id == R.id.more_btn_unarchive) {
           simpleActionId = R.id.btn_archiveUnarchiveChat;
         } else if (id == R.id.more_btn_report) {
-          TdlibUi.reportChat(getParentOrSelf(), selectedChats.keyAt(0), null, onDone, null);
+          TdlibUi.reportChat(getParentOrSelf(), selectedChats.keyAt(0), null, null, onDone, true);
           return;
         }
         if (simpleActionId != 0) {
@@ -1737,34 +1752,43 @@ public class ChatsController extends TelegramViewController<ChatsController.Argu
           tdlib.ui().post(onDone);
         }
       };
-      if (id == R.id.more_btn_archiveUnarchive) {
-        boolean isUnarchive = chatList().getConstructor() == TdApi.ChatListArchive.CONSTRUCTOR;
-        showOptions(
-          Lang.pluralBold(isUnarchive ? R.string.UnarchiveXChats : R.string.ArchiveXChats, selectedChats.size()),
-          new int[] {R.id.btn_archiveUnarchiveChat, R.id.btn_cancel},
-          new String[] {Lang.getString(isUnarchive ? R.string.Unarchive : R.string.Archive), Lang.getString(R.string.Cancel)}, null,
-          new int[] {isUnarchive ? R.drawable.baseline_unarchive_24 : R.drawable.baseline_archive_24, R.drawable.baseline_cancel_24}, (v, optionId) -> {
-            if (optionId == R.id.btn_archiveUnarchiveChat) {
-              TdApi.ChatList chatList = isUnarchive ? new TdApi.ChatListMain() : new TdApi.ChatListArchive();
-              for (int i = 0; i < selectedChats.size(); i++) {
-                tdlib.client().send(new TdApi.AddChatToList(selectedChats.keyAt(i), chatList), result -> {
-                  switch (result.getConstructor()) {
-                    case TdApi.Ok.CONSTRUCTOR:
-                      after.run();
-                      break;
-                    case TdApi.Error.CONSTRUCTOR:
-                      UI.showError(result);
-                      break;
-                  }
-                });
-              }
-            }
-            return true;
+      if (id == R.id.more_btn_unarchive || id == R.id.more_btn_archive) {
+        boolean isUnarchive = id == R.id.more_btn_unarchive;
+        int chatsCount = selectedChats.size();
+        tdlib.ui().checkNeedArchiveInFolderHint(chatList, isUnarchive, needHint -> {
+          CharSequence hint;
+          if (needHint) {
+            hint = Lang.pluralBold(isUnarchive ? R.string.UnarchiveXChatsInFolder : R.string.ArchiveXChatsInFolder, chatsCount);
+          } else {
+            hint = Lang.pluralBold(isUnarchive ? R.string.UnarchiveXChats : R.string.ArchiveXChats, chatsCount);
           }
-        );
+          showOptions(
+            hint,
+            new int[] {R.id.btn_archiveUnarchiveChat, R.id.btn_cancel},
+            new String[] {Lang.getString(isUnarchive ? R.string.Unarchive : R.string.Archive), Lang.getString(R.string.Cancel)}, null,
+            new int[] {isUnarchive ? R.drawable.baseline_unarchive_24 : R.drawable.baseline_archive_24, R.drawable.baseline_cancel_24}, (v, optionId) -> {
+              if (optionId == R.id.btn_archiveUnarchiveChat) {
+                TdApi.ChatList chatList = isUnarchive ? new TdApi.ChatListMain() : new TdApi.ChatListArchive();
+                for (int i = 0; i < selectedChats.size(); i++) {
+                  tdlib.client().send(new TdApi.AddChatToList(selectedChats.keyAt(i), chatList), result -> {
+                    switch (result.getConstructor()) {
+                      case TdApi.Ok.CONSTRUCTOR:
+                        after.run();
+                        break;
+                      case TdApi.Error.CONSTRUCTOR:
+                        UI.showError(result);
+                        break;
+                    }
+                  });
+                }
+              }
+              return true;
+            }
+          );
+        });
       } else if (id == R.id.more_btn_report) {
         long[] chatIds = ArrayUtils.keys(selectedChats);
-        TdlibUi.reportChats(getParentOrSelf(), chatIds, onDone);
+        TdlibUi.reportChats(getParentOrSelf(), chatIds, onDone, null);
       } else if (id == R.id.more_btn_block || id == R.id.more_btn_unblock) {
         boolean isUnblock = id == R.id.more_btn_unblock;
         if (isUnblock) {
@@ -2681,7 +2705,7 @@ public class ChatsController extends TelegramViewController<ChatsController.Argu
     tdlib.settings().removeUserPreferenceChangeListener(this);
     tdlib.listeners().unsubscribeFromGlobalUpdates(this);
     tdlib.cache().unsubscribeFromGlobalUpdates(this);
-    list.unsubscribeFromUpdates(this);
+    list.performDestroy();
     TGLegacyManager.instance().removeEmojiListener(this);
     tdlib.contacts().removeListener(this);
     tdlib.context().dateManager().removeListener(this);
@@ -3052,6 +3076,7 @@ public class ChatsController extends TelegramViewController<ChatsController.Argu
     public TdApi.ChatList chatList;
     public boolean isBaseController;
     public boolean needMessagesSearch;
+    public @Nullable Object tag;
 
     public Arguments (ChatFilter filter) {
       this.filter = filter;
@@ -3082,6 +3107,11 @@ public class ChatsController extends TelegramViewController<ChatsController.Argu
 
     public Arguments setIsBase (boolean isBase) {
       this.isBaseController = isBase;
+      return this;
+    }
+
+    public Arguments setTag (@Nullable Object tag) {
+      this.tag = tag;
       return this;
     }
   }

@@ -197,6 +197,17 @@ public class PlaybackController extends ViewController<Void> implements Menu, Mo
   private ImageView shuffleButton, repeatButton, nextButton, prevButton;
   private PlayPauseButton playPauseButton;
 
+  @Override
+  public boolean supportsBottomInset () {
+    return true;
+  }
+
+  @Override
+  protected void onBottomInsetChanged (int extraBottomInset, int extraBottomInsetWithoutIme, boolean isImeInset) {
+    super.onBottomInsetChanged(extraBottomInset, extraBottomInsetWithoutIme, isImeInset);
+    Views.applyBottomInset(recyclerView, extraBottomInset);
+  }
+
   private ImageView newButton (int id, int image, boolean isActive) {
     ImageView imageView = new ImageView(context());
     imageView.setId(id);
@@ -228,6 +239,7 @@ public class PlaybackController extends ViewController<Void> implements Menu, Mo
     ViewSupport.setThemedBackground(frameLayout, ColorId.filling, this);
 
     recyclerView = new PlayListRecyclerView(context);
+    Views.applyBottomInset(recyclerView, extraBottomInset);
     recyclerView.initWithController(this);
     recyclerView.setVerticalScrollBarEnabled(false);
     recyclerView.setLayoutManager(new LinearLayoutManager(context, RecyclerView.VERTICAL, false));
@@ -245,7 +257,7 @@ public class PlaybackController extends ViewController<Void> implements Menu, Mo
         if (isTrackListLess()) {
           return 0;
         }
-        int position = viewHolder.getAdapterPosition();
+        int position = viewHolder.getBindingAdapterPosition();
         int headerItemCount = 1;
         if (position == -1 || position < headerItemCount || viewHolder.getItemViewType() != ListItem.TYPE_CUSTOM_INLINE) {
           return 0;
@@ -288,8 +300,8 @@ public class PlaybackController extends ViewController<Void> implements Menu, Mo
 
       @Override
       public boolean onMove (RecyclerView recyclerView, RecyclerView.ViewHolder viewHolder, RecyclerView.ViewHolder target) {
-        int fromPosition = viewHolder.getAdapterPosition();
-        int toPosition = target.getAdapterPosition();
+        int fromPosition = viewHolder.getBindingAdapterPosition();
+        int toPosition = target.getBindingAdapterPosition();
 
         int headerItemCount = 1;
         int trackCount = getTrackCount();
@@ -1293,7 +1305,7 @@ public class PlaybackController extends ViewController<Void> implements Menu, Mo
     public void getItemOffsets (Rect outRect, View view, RecyclerView parent, RecyclerView.State state) {
       RecyclerView.ViewHolder holder = parent.getChildViewHolder(view);
       ListItem item = (ListItem) view.getTag();
-      if ((holder != null && holder.getAdapterPosition() == 0) || (item != null && item.getViewType() == ListItem.TYPE_ZERO_VIEW)) {
+      if ((holder != null && holder.getBindingAdapterPosition() == 0) || (item != null && item.getViewType() == ListItem.TYPE_ZERO_VIEW)) {
         outRect.top = context.getAvailableOverlayHeight(parent.getMeasuredWidth(), parent.getMeasuredHeight());
       } else {
         outRect.top = 0;
@@ -1415,6 +1427,7 @@ public class PlaybackController extends ViewController<Void> implements Menu, Mo
         }
 
         @Override
+        @SuppressWarnings("deprecation")
         public int getOpacity () {
           return PixelFormat.UNKNOWN;
         }
@@ -2046,7 +2059,7 @@ public class PlaybackController extends ViewController<Void> implements Menu, Mo
       boolean ignoreSource = coverFactor < .5f;
 
       if (source.needPlaceholder() || ignoreSource) {
-        // receiver.setRadius(radius);
+        receiver.setRadius(radius);
         receiver.setBounds(x, y, x + width, y + height);
         if (receiver.needPlaceholder()) {
           if (mediaPreview == null || mediaPreview.needPlaceholder(preview)) {
@@ -2074,7 +2087,7 @@ public class PlaybackController extends ViewController<Void> implements Menu, Mo
         }
         receiver.draw(c);
       }
-      // source.setRadius(radius);
+      source.setRadius(radius);
       source.setBounds(x, y, x + width, y + height);
       source.draw(c);
 

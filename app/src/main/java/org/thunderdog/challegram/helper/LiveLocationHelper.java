@@ -18,6 +18,7 @@ import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.drawable.Drawable;
 import android.os.Handler;
+import android.os.Looper;
 import android.os.Message;
 import android.os.SystemClock;
 import android.text.TextPaint;
@@ -66,9 +67,9 @@ import me.vkryl.core.ArrayUtils;
 import me.vkryl.core.ColorUtils;
 import me.vkryl.core.StringUtils;
 import me.vkryl.core.collection.IntList;
-import me.vkryl.td.ChatId;
-import me.vkryl.td.MessageId;
-import me.vkryl.td.Td;
+import tgx.td.ChatId;
+import tgx.td.MessageId;
+import tgx.td.Td;
 
 public class LiveLocationHelper implements LiveLocationManager.Listener, FactorAnimator.Target, BaseView.ActionListProvider, ForceTouchView.ActionListener, MessageListener, Handler.Callback, ClickHelper.Delegate {
   private static final int ANIMATOR_SUBTEXT = 0;
@@ -79,7 +80,8 @@ public class LiveLocationHelper implements LiveLocationManager.Listener, FactorA
 
   private final BaseActivity context;
   private final Tdlib tdlib;
-  private final long chatId, messageThreadId;
+  private final long chatId;
+  private final @Nullable TdApi.MessageTopic topicId;
   private final @Nullable View targetView;
   private final boolean onBackground;
 
@@ -100,16 +102,16 @@ public class LiveLocationHelper implements LiveLocationManager.Listener, FactorA
 
   private @Nullable final Callback callback;
 
-  public LiveLocationHelper (BaseActivity context, Tdlib tdlib, long chatId, long messageThreadId, @Nullable View targetView, boolean onBackground, @Nullable Callback callback) {
+  public LiveLocationHelper (BaseActivity context, Tdlib tdlib, long chatId, @Nullable TdApi.MessageTopic topicId, @Nullable View targetView, boolean onBackground, @Nullable Callback callback) {
     this.context = context;
     this.tdlib = tdlib;
     this.chatId = chatId;
-    this.messageThreadId = messageThreadId;
+    this.topicId = topicId;
     this.targetView = targetView;
     this.onBackground = onBackground;
     this.callback = callback;
     this.icon = Drawables.get(context.getResources(), R.drawable.baseline_location_on_18);
-    this.handler = chatId != 0 ? new Handler(this) : null;
+    this.handler = chatId != 0 ? new Handler(Looper.getMainLooper(), this) : null;
     this.clickHelper = chatId != 0 ? new ClickHelper(this) : null;
   }
 
@@ -592,7 +594,7 @@ public class LiveLocationHelper implements LiveLocationManager.Listener, FactorA
     }
 
     long chatId = this.chatId != 0 ? this.chatId : locationMessages.size() == 1 ? locationMessages.get(0).chatId : 0;
-    long messageThreadId = this.chatId != 0 || this.messageThreadId != 0 ? this.messageThreadId : locationMessages.size() == 1 ? locationMessages.get(0).messageThreadId : 0;
+    TdApi.MessageTopic topicId = this.chatId != 0 || this.topicId != null ? this.topicId : locationMessages.size() == 1 ? locationMessages.get(0).topicId : null;
 
     if (chatId != 0 && !forceList) {
       TdlibContext context = new TdlibContext(this.context, tdlib);
@@ -600,7 +602,7 @@ public class LiveLocationHelper implements LiveLocationManager.Listener, FactorA
       TdApi.Message sourceMessage = locationMessages.get(0);
       TdApi.MessageLocation messageLocation = (TdApi.MessageLocation) sourceMessage.content;
 
-      MapController.Args args = new MapController.Args(messageLocation.location.latitude, messageLocation.location.longitude, sourceMessage).setChatId(chatId, messageThreadId).setNavigateBackOnStop(true);
+      MapController.Args args = new MapController.Args(messageLocation.location.latitude, messageLocation.location.longitude, sourceMessage).setChatId(chatId, topicId).setNavigateBackOnStop(true);
 
       tdlib.ui().openMap(context, args);
 
@@ -643,7 +645,10 @@ public class LiveLocationHelper implements LiveLocationManager.Listener, FactorA
     b.setOnSettingItemClick((view, settingsId, item, doneButton, settingsAdapter, window) -> {
       TdApi.Message message = (TdApi.Message) item.getData();
       TdApi.MessageLocation messageLocation = (TdApi.MessageLocation) message.content;
-      MapController.Args args = new MapController.Args(messageLocation.location.latitude, messageLocation.location.longitude, message).setChatId(message.chatId, message.messageThreadId).setNavigateBackOnStop(true);
+      MapController.Args args = new MapController.Args(messageLocation.location.latitude, messageLocation.location.longitude, message).setChatId(
+        message.chatId,
+        message.topicId
+      ).setNavigateBackOnStop(true);
       tdlib.ui().openMap(new TdlibContext(context, tdlib), args);
       wrap[0].window.hideWindow(true);
     });

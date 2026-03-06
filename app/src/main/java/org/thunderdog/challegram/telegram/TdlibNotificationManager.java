@@ -69,7 +69,7 @@ import me.vkryl.core.BitwiseUtils;
 import me.vkryl.core.FileUtils;
 import me.vkryl.core.StringUtils;
 import me.vkryl.leveldb.LevelDB;
-import me.vkryl.td.ChatId;
+import tgx.td.ChatId;
 
 public class TdlibNotificationManager implements UI.StateListener, Passcode.LockListener, CleanupStartupDelegate {
   public static final int ID_MUSIC = Integer.MAX_VALUE;
@@ -471,7 +471,7 @@ public class TdlibNotificationManager implements UI.StateListener, Passcode.Lock
   }
 
   /**
-   * Called from {@link org.thunderdog.challegram.service.FirebaseListenerService} when push processing takes too long.
+   * Called from {@link org.thunderdog.challegram.service.PushProcessor} when push processing takes too long.
    * */
   public void notifyPushProcessingTakesTooLong () {
     notification.abortCancelableOperations();
@@ -500,7 +500,7 @@ public class TdlibNotificationManager implements UI.StateListener, Passcode.Lock
   public boolean hasLocalNotificationProblem () {
     return areNotificationsBlockedGlobally() || areNotificationsBlocked(scopePrivate()) ||
       areNotificationsBlocked(scopeGroup()) || areNotificationsBlocked(scopeChannel()) ||
-      !hasFirebase() ||
+      !hasRemotePushService() ||
       tdlib.notifications().getNotificationBlockStatus() == TdlibNotificationManager.Status.ACCOUNT_NOT_SELECTED;
   }
 
@@ -511,8 +511,8 @@ public class TdlibNotificationManager implements UI.StateListener, Passcode.Lock
       case Status.BLOCKED_CATEGORY:
       case Status.DISABLED_APP_SYNC:
       case Status.DISABLED_SYNC:
-      case Status.FIREBASE_MISSING:
-      case Status.FIREBASE_ERROR:
+      case Status.PUSH_SERVICE_MISSING:
+      case Status.PUSH_SERVICE_ERROR:
 
       case Status.INTERNAL_ERROR:
         return true;
@@ -525,11 +525,11 @@ public class TdlibNotificationManager implements UI.StateListener, Passcode.Lock
   }
 
   public boolean needSyncAlert () {
-    return isSyncDisabledGlobally() && !hasFirebase();
+    return isSyncDisabledGlobally() && !hasRemotePushService();
   }
 
-  private boolean hasFirebase () {
-    return U.isGooglePlayServicesAvailable(UI.getAppContext());
+  private boolean hasRemotePushService () {
+    return TdlibNotificationUtils.getDeviceTokenRetriever().isAvailable(UI.getContext());
   }
 
   private boolean isSyncDisabledGlobally () {
@@ -547,10 +547,10 @@ public class TdlibNotificationManager implements UI.StateListener, Passcode.Lock
     Status.BLOCKED_ALL,
     Status.DISABLED_SYNC,
     Status.DISABLED_APP_SYNC,
-    Status.FIREBASE_MISSING,
+    Status.PUSH_SERVICE_MISSING,
     Status.INTERNAL_ERROR,
     Status.ACCOUNT_NOT_SELECTED,
-    Status.FIREBASE_ERROR,
+    Status.PUSH_SERVICE_ERROR,
     Status.MISSING_PERMISSION
   })
   public @interface Status {
@@ -560,10 +560,10 @@ public class TdlibNotificationManager implements UI.StateListener, Passcode.Lock
       BLOCKED_ALL = 2,
       DISABLED_SYNC = 3,
       DISABLED_APP_SYNC = 4,
-      FIREBASE_MISSING = 5,
+      PUSH_SERVICE_MISSING = 5,
       INTERNAL_ERROR = 6,
       ACCOUNT_NOT_SELECTED = 7,
-      FIREBASE_ERROR = 8,
+      PUSH_SERVICE_ERROR = 8,
       MISSING_PERMISSION = 9;
   }
 
@@ -586,21 +586,21 @@ public class TdlibNotificationManager implements UI.StateListener, Passcode.Lock
     if (!NotificationManagerCompat.from(UI.getAppContext()).areNotificationsEnabled()) {
       return Status.BLOCKED_ALL;
     }
-    boolean hasFirebase = hasFirebase();
-    if (!hasFirebase) {
-      // Sync matters only when Firebase unavailable
+    boolean hasPushServices = hasRemotePushService();
+    if (!hasPushServices) {
+      // Sync matters only when push service (firebase, hms, ...) unavailable
       if (isSyncDisabledGlobally())
         return Status.DISABLED_SYNC;
       if (isSyncDisabledForApp())
         return Status.DISABLED_APP_SYNC;
-      return Status.FIREBASE_MISSING;
+      return Status.PUSH_SERVICE_MISSING;
     }
     if (tdlib.settings().hasNotificationProblems())
       return Status.INTERNAL_ERROR;
     if (!tdlib.account().forceEnableNotifications() && Settings.instance().checkNotificationFlag(Settings.NOTIFICATION_FLAG_ONLY_SELECTED_ACCOUNTS))
       return Status.ACCOUNT_NOT_SELECTED;
     if (tdlib.context().getTokenState() == TdlibManager.TokenState.ERROR)
-      return Status.FIREBASE_ERROR;
+      return Status.PUSH_SERVICE_ERROR;
     return Status.NOT_BLOCKED;
   }
 
@@ -1140,14 +1140,16 @@ public class TdlibNotificationManager implements UI.StateListener, Passcode.Lock
   public TdlibNotificationChannelGroup getChannelCache () throws TdlibNotificationChannelGroup.ChannelCreationFailureException {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
       long accountUserId = tdlib.myUserId(true);
+      boolean isDebug = tdlib.account().isDebug();
+      int globalVersion = getChannelsGlobalVersion();
       TdApi.User account = myUser();
       if (accountUserId == 0) {
         if (channelGroupCache != null)
           return channelGroupCache;
         throw new IllegalStateException("Cannot retrieve accountUserId, required by channelGroup, authorizationStatus: " + tdlib.authorizationStatus());
       }
-      if (channelGroupCache == null || channelGroupCache.getAccountUserId() != accountUserId) {
-        channelGroupCache = new TdlibNotificationChannelGroup(tdlib, accountUserId, tdlib.account().isDebug(), account);
+      if (channelGroupCache == null || !channelGroupCache.compareTo(accountUserId, isDebug, globalVersion)) {
+        channelGroupCache = new TdlibNotificationChannelGroup(tdlib, accountUserId, isDebug, globalVersion, account);
       }
       return channelGroupCache;
     }
@@ -1542,7 +1544,9 @@ public class TdlibNotificationManager implements UI.StateListener, Passcode.Lock
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
       int channelGlobalVersion = getChannelsGlobalVersion();
-      editor.putInt(key(_CHANNEL_VERSION_GLOBAL_KEY, accountId), _channelGlobalVersion = (channelGlobalVersion == Integer.MAX_VALUE ? Integer.MIN_VALUE : ++channelGlobalVersion));
+      int newGlobalVersion = (channelGlobalVersion == Integer.MAX_VALUE ? Integer.MIN_VALUE : channelGlobalVersion + 1);
+      _channelGlobalVersion = newGlobalVersion;
+      editor.putInt(key(_CHANNEL_VERSION_GLOBAL_KEY, accountId), newGlobalVersion);
     }
 
     String customSoundKey = key(_CUSTOM_SOUND_KEY, accountId);
@@ -1579,14 +1583,16 @@ public class TdlibNotificationManager implements UI.StateListener, Passcode.Lock
 
     _repeatNotificationMinutes = null;
 
+    long selfUserId = tdlib.myUserId(true);
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-      long selfUserId = tdlib.myUserId();
-      TdApi.User account = tdlib.myUser();
+      TdlibAccount account = tdlib.account();
       if (selfUserId != 0) {
-        TdlibNotificationChannelGroup.deleteChannels(tdlib, selfUserId, tdlib.account().isDebug(), account, !onlyLocal);
+        TdApi.User user = tdlib.myUser();
+        TdlibNotificationChannelGroup.deleteChannels(tdlib, selfUserId, account.isDebug(), user, !onlyLocal);
       }
     }
 
+    boolean updated = false;
     if (!onlyLocal) {
       if (needUpdateDefaults(settingsForPrivateChats)) {
         if (settingsForPrivateChats != null) {
@@ -1613,15 +1619,18 @@ public class TdlibNotificationManager implements UI.StateListener, Passcode.Lock
         tdlib.client().send(new TdApi.SetScopeNotificationSettings(new TdApi.NotificationSettingsScopeChannelChats(), settingsForChannelChats), tdlib.okHandler());
       }
 
-      boolean updated;
       updated = Settings.instance().setNeedSplitNotificationCategories(true);
       updated = Settings.instance().setNeedHideSecretChats(false) || updated;
       if (Settings.instance().resetBadge()) {
         tdlib.context().resetBadge(true);
       }
-      if (updated) {
-        tdlib.context().onUpdateAllNotifications();
-      }
+    }
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      onUpdateNotificationChannels(selfUserId);
+    }
+    if (updated) {
+      tdlib.context().onUpdateAllNotifications();
     }
 
     rebuildNotification();

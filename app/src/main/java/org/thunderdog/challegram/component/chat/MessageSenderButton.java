@@ -32,7 +32,7 @@ import me.vkryl.android.animator.ReplaceAnimator;
 import me.vkryl.android.widget.FrameLayoutFix;
 import me.vkryl.core.ColorUtils;
 import me.vkryl.core.MathUtils;
-import me.vkryl.td.Td;
+import tgx.td.Td;
 
 public class MessageSenderButton extends FrameLayout implements ReplaceAnimator.Callback, FactorAnimator.Target, HapticMenuHelper.OnItemMenuListener {
   private static final float ATTACH_BUTTONS_WIDTH = 47f;
@@ -230,7 +230,7 @@ public class MessageSenderButton extends FrameLayout implements ReplaceAnimator.
   }
 
   @Override
-  public void onItemChanged (ReplaceAnimator animator) {
+  public void onItemChanged (ReplaceAnimator<?> animator) {
     currentButtonView.setAlpha(0f);
     currentButtonView.setTranslationY(0);
     oldButtonView.setAlpha(0f);

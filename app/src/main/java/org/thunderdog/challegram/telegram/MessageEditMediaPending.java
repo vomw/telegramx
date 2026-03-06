@@ -23,7 +23,8 @@ import org.thunderdog.challegram.data.TD;
 import org.thunderdog.challegram.tool.UI;
 
 import me.vkryl.core.BitwiseUtils;
-import me.vkryl.td.ChatId;
+import tgx.td.ChatId;
+import tgx.td.Td;
 
 public class MessageEditMediaPending implements Tdlib.UploadFutureSimple.Callback {
   public final long chatId, messageId;
@@ -147,15 +148,15 @@ public class MessageEditMediaPending implements Tdlib.UploadFutureSimple.Callbac
   }
 
   public TdApi.MessagePhoto getMessagePhoto () {
-    return new TdApi.MessagePhoto(getPhoto(), getCaption(), hasSpoiler(), false);
+    return new TdApi.MessagePhoto(getPhoto(), getCaption(), showCaptionAboveMedia(), hasSpoiler(), false);
   }
 
   public TdApi.MessageVideo getMessageVideo () {
-    return new TdApi.MessageVideo(getVideo(), getCaption(), hasSpoiler(), false);
+    return new TdApi.MessageVideo(getVideo(), new TdApi.AlternativeVideo[0], new TdApi.VideoStoryboard[0], getVideoCover(), 0, getCaption(), showCaptionAboveMedia(), hasSpoiler(), false);
   }
 
   public TdApi.MessageAnimation getMessageAnimation () {
-    return new TdApi.MessageAnimation(getAnimation(), getCaption(), hasSpoiler(), false);
+    return new TdApi.MessageAnimation(getAnimation(), getCaption(), showCaptionAboveMedia(), hasSpoiler(), false);
   }
 
   public TdApi.MessageAudio getMessageAudio () {
@@ -167,9 +168,16 @@ public class MessageEditMediaPending implements Tdlib.UploadFutureSimple.Callbac
   }
 
   public TdApi.FormattedText getCaption () {
-    return TD.textOrCaption(content);
+    return Td.textOrCaption(content);
   }
 
+  public boolean showCaptionAboveMedia () {
+    return Td.showCaptionAboveMedia(content);
+  }
+
+  public TdApi.Photo getVideoCover () {
+    return null; // TODO
+  }
   public boolean hasSpoiler () {
     switch (content.getConstructor()) {
       case TdApi.InputMessagePhoto.CONSTRUCTOR:

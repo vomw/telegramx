@@ -366,6 +366,7 @@ public class ImageReader {
 
     if (bitmap != null) {
       if (file.isPrivate()) {
+        // TODO: test with with hight width/height difference
         bitmap = resizeBitmap(bitmap, 36, 36, true);
         /*bitmap = resizeBitmap(bitmap, 48, 48, true);*/
       } else if (!file.needHiRes() && (file.needFitSize() || file.forceArgb8888()) && Math.max(bitmap.getWidth(), bitmap.getHeight()) > file.getSize() && file.getSize() != 0) {
@@ -658,13 +659,13 @@ public class ImageReader {
   }
 
   public static Bitmap decodeVideoFrame (String path, int maxSize) {
-    int[] metadata = new int[4];
+    long[] metadata = new long[N.DECODER_METADATA_ARRAY_SIZE];
     long ptr = N.createDecoder(path, metadata, 0);
     if (ptr == 0)
       return null;
     int rotation = U.getVideoRotation(path);
-    int width = metadata[0];
-    int height = metadata[1];
+    int width = (int) metadata[0];
+    int height = (int) metadata[1];
     boolean error = (width <= 0 || height <= 0);
     boolean ok = false;
     Bitmap bitmap = null;
@@ -848,12 +849,17 @@ public class ImageReader {
       return bitmap;
     }
 
-    float ratio = Math.min((float) maxWidth / (float) width, (float) maxHeight / (float) height);
+    float ratio = Math.min(
+      (float) maxWidth / (float) width,
+      (float) maxHeight / (float) height
+    );
 
     Bitmap resized = null;
 
     try {
-      resized = Bitmap.createScaledBitmap(bitmap, (int) (width * ratio), (int) (height * ratio), true);
+      int scaledWidth = Math.max(1, (int) (width * ratio));
+      int scaledHeight = Math.max(1, (int) (height * ratio));
+      resized = Bitmap.createScaledBitmap(bitmap, scaledWidth, scaledHeight, true);
       if (resized != null) {
         if (allowRecycle && !bitmap.isRecycled()) {
           bitmap.recycle();
@@ -865,7 +871,7 @@ public class ImageReader {
     } catch (Throwable t) {
       Log.w("Cannot resize bitmap", t);
       if (!returnOriginal) {
-        if (resized != null) { try { resized.recycle();} catch (Throwable ignored) { } }
+        if (resized != null) { try { resized.recycle(); } catch (Throwable ignored) { } }
         throw t;
       }
     }

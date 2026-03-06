@@ -24,8 +24,8 @@ import androidx.annotation.Nullable;
 import androidx.core.app.NotificationManagerCompat;
 
 import org.drinkless.tdlib.TdApi;
-import org.drinkmore.Tracer;
 import org.thunderdog.challegram.Log;
+import org.thunderdog.challegram.TDLib;
 import org.thunderdog.challegram.config.Config;
 import org.thunderdog.challegram.tool.UI;
 import org.thunderdog.challegram.unsorted.Passcode;
@@ -41,7 +41,7 @@ import java.util.Map;
 import java.util.Set;
 
 import me.vkryl.core.util.FilteredIterator;
-import me.vkryl.td.ChatId;
+import tgx.td.ChatId;
 
 public class TdlibNotificationHelper implements Iterable<TdlibNotificationGroup> {
   private final TdlibNotificationManager context;
@@ -184,7 +184,7 @@ public class TdlibNotificationHelper implements Iterable<TdlibNotificationGroup>
     if (!isSilent && update.notificationSettingsChatId != 0 && ChatId.isUserChat(update.notificationSettingsChatId) && tdlib.settings().needMuteNonContacts()) {
       TdApi.User user = tdlib.chatUser(update.notificationSettingsChatId);
       if (user != null && !user.isContact) {
-        Log.i(Log.TAG_FCM, "Making notification from chatId=%d silent, because of user preferences for %d", update.chatId, update.notificationSettingsChatId);
+        TDLib.Tag.notifications("Making notification from chatId=%d silent, because of user preferences for %d", update.chatId, update.notificationSettingsChatId);
         isSilent = true;
       }
     }
@@ -339,8 +339,12 @@ public class TdlibNotificationHelper implements Iterable<TdlibNotificationGroup>
               return false;
           }
           return true;
-        } catch (Throwable t) {
-          Tracer.onNotificationError(t);
+        } catch (TdlibNotificationChannelGroup.ChannelCreationFailureException e) {
+          TDLib.Tag.notifications("Unable to create some notification channels for userId %d:\n%s",
+            accountUserId,
+            Log.toString(e)
+          );
+          tdlib.settings().trackNotificationChannelProblem(e, 0);
         }
       }
     }

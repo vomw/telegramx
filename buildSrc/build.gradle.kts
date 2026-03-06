@@ -1,58 +1,51 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
   `kotlin-dsl`
 }
 
-val kotlinVersion = "1.9.23"
-
-gradlePlugin {
-  plugins {
-    register("module-plugin") {
-      id = "module-plugin"
-      implementationClass = "me.vkryl.plugin.ModulePlugin"
-    }
-    register("cmake-plugin") {
-      id = "cmake-plugin"
-      implementationClass = "me.vkryl.plugin.CMakePlugin"
-    }
+java {
+  toolchain {
+    languageVersion = JavaLanguageVersion.of(21)
   }
 }
 
-repositories {
-  google()
-  mavenCentral()
+kotlin {
+  compilerOptions {
+    allWarningsAsErrors = true
+    jvmTarget = JvmTarget.JVM_21
+  }
+  jvmToolchain {
+    languageVersion = JavaLanguageVersion.of(21)
+  }
 }
 
-configurations.all {
-  resolutionStrategy.eachDependency {
-    if (requested.group == "org.jetbrains.kotlin") {
-      when (requested.name) {
-        "kotlin-assignment",
-        "kotlin-assignment-compiler-plugin-embeddable",
-        "kotlin-stdlib",
-        "kotlin-stdlib-common",
-        "kotlin-stdlib-jdk7",
-        "kotlin-stdlib-jdk8",
-        "kotlin-reflect",
-        "kotlin-compiler-embeddable",
-        "kotlin-scripting-compiler-embeddable",
-        "kotlin-sam-with-receiver",
-        "kotlin-sam-with-receiver-compiler-plugin-embeddable" -> {
-          this.useVersion(kotlinVersion)
-        }
-        else -> if (requested.version != kotlinVersion) {
-          error("Incompatible package: ${requested.group}:${requested.name}:${requested.version}, ${target.group}:${target.name}:${target.version}")
-        }
-      }
+gradlePlugin {
+  plugins {
+    register("tgx-config") {
+      id = "tgx-config"
+      implementationClass = "tgx.gradle.plugin.ConfigurationPlugin"
+    }
+    register("tgx-module") {
+      id = "tgx-module"
+      implementationClass = "tgx.gradle.plugin.ModulePlugin"
     }
   }
 }
 
 dependencies {
+  // https://github.com/gradle/gradle/issues/15383#issuecomment-779893192
+  implementation(files(libs.javaClass.superclass.protectionDomain.codeSource.location))
+
   compileOnly(gradleApi())
-  implementation("com.android.tools.build:gradle:8.3.0")
-  implementation("com.google.gms:google-services:4.4.1")
-  implementation("org.jetbrains.kotlin:kotlin-gradle-plugin:${kotlinVersion}")
-  implementation("com.squareup.okhttp3:okhttp:4.12.0")
-  implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
-  implementation("com.beust:klaxon:5.6")
+  implementation(libs.android.gradle.plugin)
+  implementation(libs.okhttp.latest)
+  implementation(libs.kotlinx.serialization.json)
+}
+
+apply(from = "${rootDir.parentFile}/properties.gradle.kts")
+if (extra["huawei"] == true) {
+  dependencies {
+    implementation(libs.huawei.agconnect)
+  }
 }

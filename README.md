@@ -36,12 +36,7 @@ This is the complete source code and the build instructions for the official alt
 
 #### Windows
 
-* Shell with `git`, `wget`, and `make` utilities:
-    * **MSYS**: `$ pacman -S make git mingw-w64-x86_64-git-lfs`
-    * **Git Bash**: 
-        1. Download [wget](https://eternallybored.org/misc/wget/), unzip `wget.exe` and move to your `Git\mingw64\bin\`
-        2. Download [make](https://sourceforge.net/projects/ezwinports/files/make-4.3-without-guile-w32-bin.zip), unzip and copy the contents to your `Git\mingw64\` merging the folders, but do **NOT** overwrite any existing files
-* Run `$ git lfs install` for the current user, if you didn't have `git lfs` previously initialized
+* **Telegram X** does not provide official build instructions for Windows platform. It is recommended to rely on Linux distributions instead.
 
 ### Building
 
@@ -80,7 +75,13 @@ After submitting a pull request and its initial review, special build including 
 
 ## Reproducing public builds
 
-In order to verify that there is no additional source code injected inside official APKs, you must use **Ubuntu 21.04** for builds published before [26th May 2023](https://github.com/TGX-Android/Telegram-X/commit/e9a054a0f469a98a13f7e0d751539687fef8759b) or **Ubuntu 22.04.2 LTS** for any newer releases, and comply with the following requirements:
+In order to verify that there is no additional source code injected inside official APKs, you must use one of the following versions of **Ubuntu**:
+
+* **21.04**: for builds published before [26th May 2023](https://github.com/TGX-Android/Telegram-X/commit/e9a054a0f469a98a13f7e0d751539687fef8759b)
+* **22.04.2 LTS**: for builds published before 27th September 2025
+* **24.04 LTS**: for any newer releases.
+
+And update its configuration:
 
 1. Create user called `vk` with the home directory located at `/home/vk`
 2. Clone `tgx` repository to `/home/vk/tgx`
@@ -108,6 +109,7 @@ In order to obtain **SHA-256** of the APK:
 
 * `$ sha256sum <path-to-apk>` on **Ubuntu**
 * `$ shasum -a 256 <path-to-apk>` on **macOS**
+* `$ certutil -hashfile <path-to-apk> SHA256` on **Windows**
 
 Once obtained, there are three ways to find out the commit for the specific checksum:
 

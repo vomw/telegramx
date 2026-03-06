@@ -50,6 +50,7 @@ import me.vkryl.core.BitwiseUtils;
 import me.vkryl.core.ColorUtils;
 import me.vkryl.core.MathUtils;
 
+@SuppressWarnings("unchecked")
 public class GifReceiver implements GifWatcher, Runnable, Receiver {
   private static final int STATE_LOADED = 0x01;
 
@@ -101,7 +102,6 @@ public class GifReceiver implements GifWatcher, Runnable, Receiver {
   }
 
   @Override
-  @SuppressWarnings("unchecked")
   public final GifReceiver setUpdateListener (ReceiverUpdateListener listener) {
     this.updateListener = listener;
     return this;
@@ -198,8 +198,8 @@ public class GifReceiver implements GifWatcher, Runnable, Receiver {
       } else {
         ratio = Math.min(widthRatio, heightRatio);
       }
-      sourceWidth *= ratio;
-      sourceHeight *= ratio;
+      sourceWidth = (int) ((float) sourceWidth * ratio);
+      sourceHeight = (int) ((float) sourceHeight * ratio);
       return sourceWidth;
     }
     return getWidth();
@@ -229,8 +229,8 @@ public class GifReceiver implements GifWatcher, Runnable, Receiver {
       } else {
         ratio = Math.min(widthRatio, heightRatio);
       }
-      sourceWidth *= ratio;
-      sourceHeight *= ratio;
+      sourceWidth = (int) ((float) sourceWidth * ratio);
+      sourceHeight = (int) ((float) sourceHeight * ratio);
       return sourceHeight;
     }
     return 0;
@@ -292,8 +292,8 @@ public class GifReceiver implements GifWatcher, Runnable, Receiver {
           }
 
           float ratio = Math.min((float) availWidth / (float) sourceWidth, (float) availHeight / (float) sourceHeight);
-          sourceWidth *= ratio;
-          sourceHeight *= ratio;
+          sourceWidth = (int) ((float) sourceWidth * ratio);
+          sourceHeight = (int) ((float) sourceHeight * ratio);
 
           int centerX = (int) drawRegion.centerX();
           int centerY = (int) drawRegion.centerY();
@@ -523,6 +523,7 @@ public class GifReceiver implements GifWatcher, Runnable, Receiver {
     sweep = sweepStart + sweepDiff * sweepFactor;
   }
 
+  @SuppressWarnings("deprecation")
   private void invalidateProgress () {
     if (view != null) {
       view.invalidate((int) progressRect.left - progressOffset, (int) progressRect.top - progressOffset, (int) progressRect.right + progressOffset, (int) progressRect.bottom + progressOffset);
@@ -532,6 +533,7 @@ public class GifReceiver implements GifWatcher, Runnable, Receiver {
     }
   }
 
+  @SuppressWarnings("deprecation")
   @Override
   public void invalidate () {
     if (view != null) {
@@ -785,6 +787,7 @@ public class GifReceiver implements GifWatcher, Runnable, Receiver {
     } : null;
   }
 
+  @SuppressWarnings("deprecation")
   public void draw (Canvas c) {
     if (file == null) {
       return;

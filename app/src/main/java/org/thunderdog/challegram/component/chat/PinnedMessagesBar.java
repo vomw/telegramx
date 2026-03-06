@@ -61,7 +61,7 @@ import me.vkryl.core.ColorUtils;
 import me.vkryl.core.MathUtils;
 import me.vkryl.core.StringUtils;
 import me.vkryl.core.lambda.Destroyable;
-import me.vkryl.td.MessageId;
+import tgx.td.MessageId;
 
 public class PinnedMessagesBar extends ViewGroup implements Destroyable, MessageListManager.ChangeListener, View.OnClickListener {
   private CustomRecyclerView recyclerView;
@@ -164,11 +164,11 @@ public class PinnedMessagesBar extends ViewGroup implements Destroyable, Message
         final int minLineHeight = (maxLineHeight - minSpacingBetweenItems * 3) / 4;
 
         final int lineHeight = Math.min(maxLineHeight, Math.max(minLineHeight, ((viewportHeight - outerSpacing * 2 - minSpacingBetweenItems * (scrollItemCount - 1))) / scrollItemCount));
-        final int spacingBetweenItems = scrollItemCount <= 1 ? 0 : MathUtils.fromTo(minSpacingBetweenItems, outerSpacing * 2, (float) (visibleItemCount - 1) / (float) (scrollItemCount - 1));
+        final int spacingBetweenItems = scrollItemCount <= 1 ? 0 : MathUtils.fromTo(minSpacingBetweenItems, outerSpacing * 2, (visibleItemCount - 1) / (float) (scrollItemCount - 1));
 
         final int visibleLineCount = Math.min(scrollItemCount, viewportHeight / lineHeight + 1);
 
-        final float scrollFactor = scrollItemCount == visibleItemCount ? 1f : focusPosition / (float) (scrollItemCount - visibleItemCount);
+        final float scrollFactor = scrollItemCount == visibleItemCount ? 1f : focusPosition / (scrollItemCount - visibleItemCount);
 
         final int fromPosition = Math.max(0, (int) (focusPosition - Math.ceil(visibleLineCount * scrollFactor)));
         final int toPosition = Math.min(scrollItemCount, (int) Math.ceil(focusPosition) + visibleLineCount + 1);
@@ -462,7 +462,7 @@ public class PinnedMessagesBar extends ViewGroup implements Destroyable, Message
       public void onViewAttachedToWindow (SettingHolder holder) {
         super.onViewAttachedToWindow(holder);
         if (holder.itemView instanceof MessagePreviewView) {
-          int position = holder.getAdapterPosition();
+          int position = holder.getBindingAdapterPosition();
           updateContentInset((MessagePreviewView) holder.itemView, position);
         }
       }

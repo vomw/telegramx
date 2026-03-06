@@ -57,9 +57,9 @@ import java.util.concurrent.TimeUnit;
 
 import me.vkryl.android.widget.FrameLayoutFix;
 import me.vkryl.core.StringUtils;
-import me.vkryl.td.ChatId;
-import me.vkryl.td.Td;
-import me.vkryl.td.TdConstants;
+import tgx.td.ChatId;
+import tgx.td.Td;
+import tgx.td.TdConstants;
 
 public class EditRightsController extends EditBaseController<EditRightsController.Args> implements View.OnClickListener, TdlibCache.BasicGroupDataChangeListener {
   public static final int MODE_ADMIN_PROMOTION = 1;
@@ -154,6 +154,7 @@ public class EditRightsController extends EditBaseController<EditRightsControlle
                 true,
                 true,
                 true,
+                true,
                 creator.isAnonymous
               )
             );
@@ -198,6 +199,7 @@ public class EditRightsController extends EditBaseController<EditRightsControlle
         true,
         true,
         isForum,
+        true,
         true,
         true,
         true,
@@ -471,7 +473,7 @@ public class EditRightsController extends EditBaseController<EditRightsControlle
         Args args = getArgumentsStrict();
         editText.getEditText().setInputType(InputType.TYPE_CLASS_TEXT);
         editText.setEmptyHint(args.member != null && TD.isCreator(args.member.status) ? R.string.message_ownerSign : R.string.message_adminSignPlain);
-        editText.setText(item.getStringValue());
+        editText.setText(item.getCharSequenceValue());
         editText.setInputEnabled(TD.isCreator(args.myStatus) || isNewRuleSet() || canDismissAdmin());
         editText.setMaxLength(TdConstants.MAX_CUSTOM_TITLE_LENGTH);
         if (parent.getBackground() == null) {
@@ -829,6 +831,8 @@ public class EditRightsController extends EditBaseController<EditRightsControlle
               return me.rights.canManageVideoChats;
             case RightId.MANAGE_OR_CREATE_TOPICS:
               return me.rights.canManageTopics;
+            case RightId.MANAGE_DIRECT_MESSAGES:
+              return me.rights.canManageDirectMessages;
             case RightId.POST_STORIES:
               return me.rights.canPostStories;
             case RightId.EDIT_STORIES:
@@ -846,7 +850,7 @@ public class EditRightsController extends EditBaseController<EditRightsControlle
             case RightId.SEND_VOICE_NOTES:
             case RightId.SEND_OTHER_MESSAGES:
             case RightId.EMBED_LINKS:
-            case RightId.SEND_POLLS:
+            case RightId.SEND_POLLS_OR_CHECKLISTS:
               return me.rights.canPostMessages;
             case RightId.READ_MESSAGES:
               return true;
@@ -1082,6 +1086,7 @@ public class EditRightsController extends EditBaseController<EditRightsControlle
       rightIdOptions.add(new RightOption(R.string.RightMessages, MANAGE_CHANNEL_POSTS_IDS));
       rightIdOptions.add(new RightOption(RightId.INVITE_USERS));
       rightIdOptions.add(new RightOption(RightId.MANAGE_VIDEO_CHATS));
+      rightIdOptions.add(new RightOption(RightId.MANAGE_DIRECT_MESSAGES));
       rightIdOptions.add(new RightOption(RightId.ADD_NEW_ADMINS));
       rightIdOptions.add(new RightOption(R.string.RightStories, MANAGE_STORIES_RIGHT_IDS));
     } else {
@@ -1271,12 +1276,14 @@ public class EditRightsController extends EditBaseController<EditRightsControlle
   }
 
   @Override
-  public boolean onBackPressed (boolean fromTop) {
+  public boolean performOnBackPressed (boolean fromTop, boolean commit) {
     if (hasAnyChanges()) {
-      showUnsavedChangesPromptBeforeLeaving(null);
+      if (commit) {
+        showUnsavedChangesPromptBeforeLeaving(null);
+      }
       return true;
     }
-    return false;
+    return super.performOnBackPressed(fromTop, commit);
   }
 
   private void setCanViewMessages (boolean value) {
@@ -1386,7 +1393,7 @@ public class EditRightsController extends EditBaseController<EditRightsControlle
       case RightId.SEND_DOCS:
       case RightId.SEND_PHOTOS:
       case RightId.SEND_VIDEOS:
-      case RightId.SEND_POLLS:
+      case RightId.SEND_POLLS_OR_CHECKLISTS:
       case RightId.SEND_VOICE_NOTES:
       case RightId.SEND_VIDEO_NOTES:
       case RightId.SEND_OTHER_MESSAGES: {
@@ -1406,7 +1413,7 @@ public class EditRightsController extends EditBaseController<EditRightsControlle
           case RightId.SEND_VIDEOS:
             targetRestrict.permissions.canSendVideos = newValue;
             break;
-          case RightId.SEND_POLLS:
+          case RightId.SEND_POLLS_OR_CHECKLISTS:
             targetRestrict.permissions.canSendPolls = newValue;
             break;
           case RightId.SEND_VOICE_NOTES:
@@ -1426,7 +1433,7 @@ public class EditRightsController extends EditBaseController<EditRightsControlle
       case RightId.EMBED_LINKS: {
         setCanViewMessages(canViewMessages || newValue);
         targetRestrict.permissions.canSendBasicMessages = targetRestrict.permissions.canSendBasicMessages || newValue;
-        targetRestrict.permissions.canAddWebPagePreviews = newValue;
+        targetRestrict.permissions.canAddLinkPreviews = newValue;
         break;
       }
       case RightId.CHANGE_CHAT_INFO: {
@@ -1467,6 +1474,9 @@ public class EditRightsController extends EditBaseController<EditRightsControlle
       case RightId.MANAGE_VIDEO_CHATS:
         targetAdmin.rights.canManageVideoChats = newValue;
         break;
+      case RightId.MANAGE_DIRECT_MESSAGES:
+        targetAdmin.rights.canManageDirectMessages = newValue;
+        break;
       case RightId.MANAGE_OR_CREATE_TOPICS:
         if (getArgumentsStrict().mode == MODE_ADMIN_PROMOTION) {
           targetAdmin.rights.canManageTopics = newValue;
@@ -1498,7 +1508,7 @@ public class EditRightsController extends EditBaseController<EditRightsControlle
     if (getArgumentsStrict().mode == MODE_CHAT_PERMISSIONS || getArgumentsStrict().mode == MODE_RESTRICTION) {
       targetRestrict.isMember = canViewMessages;
       targetRestrict.permissions.canSendBasicMessages = getValueForId(RightId.SEND_BASIC_MESSAGES);
-      targetRestrict.permissions.canAddWebPagePreviews = getValueForId(RightId.EMBED_LINKS);
+      targetRestrict.permissions.canAddLinkPreviews = getValueForId(RightId.EMBED_LINKS);
       targetRestrict.permissions.canSendAudios = getValueForId(RightId.SEND_AUDIO);
       targetRestrict.permissions.canSendDocuments = getValueForId(RightId.SEND_DOCS);
       targetRestrict.permissions.canSendPhotos = getValueForId(RightId.SEND_PHOTOS);
@@ -1506,7 +1516,7 @@ public class EditRightsController extends EditBaseController<EditRightsControlle
       targetRestrict.permissions.canSendVoiceNotes = getValueForId(RightId.SEND_VOICE_NOTES);
       targetRestrict.permissions.canSendVideoNotes = getValueForId(RightId.SEND_VIDEO_NOTES);
       targetRestrict.permissions.canSendOtherMessages = getValueForId(RightId.SEND_OTHER_MESSAGES);
-      targetRestrict.permissions.canSendPolls = getValueForId(RightId.SEND_POLLS);
+      targetRestrict.permissions.canSendPolls = getValueForId(RightId.SEND_POLLS_OR_CHECKLISTS);
     }
     updateValues();
     checkDoneButton();
@@ -1568,7 +1578,7 @@ public class EditRightsController extends EditBaseController<EditRightsControlle
           return canViewMessages && targetRestrict.permissions.canSendBasicMessages;
         }
       case RightId.EMBED_LINKS:
-        return canViewMessages && targetRestrict.permissions.canSendBasicMessages && targetRestrict.permissions.canAddWebPagePreviews;
+        return canViewMessages && targetRestrict.permissions.canSendBasicMessages && targetRestrict.permissions.canAddLinkPreviews;
       case RightId.SEND_AUDIO:
         return canViewMessages && targetRestrict.permissions.canSendAudios;
       case RightId.SEND_DOCS:
@@ -1583,7 +1593,7 @@ public class EditRightsController extends EditBaseController<EditRightsControlle
         return canViewMessages && targetRestrict.permissions.canSendVideoNotes;
       case RightId.SEND_OTHER_MESSAGES:
         return canViewMessages && targetRestrict.permissions.canSendOtherMessages;
-      case RightId.SEND_POLLS:
+      case RightId.SEND_POLLS_OR_CHECKLISTS:
         return canViewMessages && targetRestrict.permissions.canSendPolls;
       case RightId.CHANGE_CHAT_INFO:
         if (getArgumentsStrict().mode == MODE_ADMIN_PROMOTION) {
@@ -1611,6 +1621,8 @@ public class EditRightsController extends EditBaseController<EditRightsControlle
         return targetAdmin.rights.canPromoteMembers;
       case RightId.MANAGE_VIDEO_CHATS:
         return targetAdmin.rights.canManageVideoChats;
+      case RightId.MANAGE_DIRECT_MESSAGES:
+        return targetAdmin.rights.canManageDirectMessages;
       case RightId.MANAGE_OR_CREATE_TOPICS:
         if (getArgumentsStrict().mode == MODE_ADMIN_PROMOTION) {
           return targetAdmin.rights.canManageTopics;
@@ -1651,7 +1663,7 @@ public class EditRightsController extends EditBaseController<EditRightsControlle
         return R.string.RightSendVideoNote;
       case RightId.SEND_OTHER_MESSAGES:
         return R.string.UserRestrictionsSendStickers;
-      case RightId.SEND_POLLS:
+      case RightId.SEND_POLLS_OR_CHECKLISTS:
         return R.string.UserRestrictionsSendPolls;
       case RightId.EMBED_LINKS:
         return R.string.UserRestrictionsEmbedLinks;
@@ -1671,6 +1683,8 @@ public class EditRightsController extends EditBaseController<EditRightsControlle
         return R.string.RightEditMessages;
       case RightId.MANAGE_VIDEO_CHATS:
         return isChannel ? R.string.RightLiveStreams : R.string.RightVoiceChats;
+      case RightId.MANAGE_DIRECT_MESSAGES:
+        return R.string.RightDirectMessages;
       case RightId.MANAGE_OR_CREATE_TOPICS:
         return getArgumentsStrict().mode == MODE_ADMIN_PROMOTION ? R.string.RightTopics : R.string.RightTopicsCreate;
       case RightId.POST_STORIES:
@@ -1711,6 +1725,8 @@ public class EditRightsController extends EditBaseController<EditRightsControlle
 
       case RightId.MANAGE_VIDEO_CHATS:
         return R.drawable.baseline_video_chat_24;
+      case RightId.MANAGE_DIRECT_MESSAGES:
+        return R.drawable.baseline_chat_bubble_24;
       case RightId.MANAGE_OR_CREATE_TOPICS:
         return R.drawable.baseline_format_list_bulleted_type_24;
 
@@ -1724,7 +1740,7 @@ public class EditRightsController extends EditBaseController<EditRightsControlle
       case RightId.SEND_VOICE_NOTES:
       case RightId.SEND_VIDEO_NOTES:
       case RightId.SEND_OTHER_MESSAGES:
-      case RightId.SEND_POLLS:
+      case RightId.SEND_POLLS_OR_CHECKLISTS:
       case RightId.EMBED_LINKS:
       default:
         return 0;
@@ -1815,7 +1831,7 @@ public class EditRightsController extends EditBaseController<EditRightsControlle
       CharSequence[] hints = errorHints.toArray(new CharSequence[0]);
       CharSequence hint = TextUtils.join("\n", hints);
       context().tooltipManager()
-        .builder(((SettingView) view).getToggler())
+        .builder(view.getToggler())
         .show(this, tdlib, R.drawable.baseline_info_24, hint);
     }
   }
@@ -1867,7 +1883,7 @@ public class EditRightsController extends EditBaseController<EditRightsControlle
     RightId.SEND_VOICE_NOTES,
     RightId.SEND_VIDEO_NOTES,
     RightId.SEND_OTHER_MESSAGES,
-    RightId.SEND_POLLS,
+    RightId.SEND_POLLS_OR_CHECKLISTS,
     RightId.EMBED_LINKS,
   };
 

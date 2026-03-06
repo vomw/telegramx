@@ -14,10 +14,11 @@
  */
 package org.thunderdog.challegram.filegen;
 
+import static tgx.flavor.VideoTransformer.getVideoFrameRate;
+import static tgx.flavor.VideoTransformer.legacyConvertVideoComplex;
+
 import android.annotation.TargetApi;
-import android.media.MediaFormat;
 import android.media.MediaMetadataRetriever;
-import android.net.Uri;
 import android.os.Build;
 import android.os.Message;
 
@@ -40,18 +41,13 @@ import androidx.media3.transformer.ProgressHolder;
 import androidx.media3.transformer.Transformer;
 import androidx.media3.transformer.VideoEncoderSettings;
 
-import com.otaliastudios.transcoder.Transcoder;
-import com.otaliastudios.transcoder.TranscoderListener;
-import com.otaliastudios.transcoder.common.TrackType;
-import com.otaliastudios.transcoder.source.DataSource;
-import com.otaliastudios.transcoder.source.FilePathDataSource;
-import com.otaliastudios.transcoder.source.TrimDataSource;
-import com.otaliastudios.transcoder.source.UriDataSource;
-import com.otaliastudios.transcoder.strategy.DefaultAudioStrategy;
-import com.otaliastudios.transcoder.strategy.DefaultVideoStrategy;
-import com.otaliastudios.transcoder.strategy.PassThroughTrackStrategy;
-import com.otaliastudios.transcoder.strategy.RemoveTrackStrategy;
-import com.otaliastudios.transcoder.strategy.TrackStrategy;
+import com.googlecode.mp4parser.BasicContainer;
+import com.googlecode.mp4parser.authoring.Movie;
+import com.googlecode.mp4parser.authoring.Track;
+import com.googlecode.mp4parser.authoring.builder.DefaultMp4Builder;
+import com.googlecode.mp4parser.authoring.container.mp4.MovieCreator;
+import com.googlecode.mp4parser.authoring.tracks.AppendTrack;
+import com.googlecode.mp4parser.authoring.tracks.CroppedTrack;
 
 import org.drinkless.tdlib.TdApi;
 import org.thunderdog.challegram.Log;
@@ -71,14 +67,19 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
+import java.nio.channels.FileChannel;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import kotlin.collections.ArrayDeque;
+import me.vkryl.core.MathUtils;
 import me.vkryl.core.StringUtils;
 import me.vkryl.core.lambda.RunnableData;
 import me.vkryl.core.lambda.RunnableLong;
@@ -120,6 +121,10 @@ public class VideoGen {
     private final long generationId;
     private Future<Void> task;
     private Transformer transformer;
+
+    public void setTask (Future<Void> task) {
+      this.task = task;
+    }
 
     private Entry (VideoGen context, long generationId) {
       this.context = context;
@@ -198,7 +203,7 @@ public class VideoGen {
     return 0;
   }
 
-  private interface ProgressCallback {
+  public interface ProgressCallback {
     void onTranscodeProgress (double progress, long expectedSize);
     void onReadyToUpload (long bytesCount, long expectedSize);
   }
@@ -316,11 +321,46 @@ public class VideoGen {
       return;
     }
 
+    awaitOrConvertVideo(sourcePath, destinationPath, info, entry, onProgress, onComplete, onCancel, onFailure);
+  }
+
+  private final AtomicInteger runningVideoGenerations = new AtomicInteger();
+  private final ArrayDeque<Runnable> pendingVideoGenerations = new ArrayDeque<>();
+
+  private int maxParallelVideoGenerations () {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+      return MathUtils.clamp(Runtime.getRuntime().availableProcessors(), 1, 8);
+    } else {
+      return 1;
+    }
+  }
+
+  private void awaitOrConvertVideo (String sourcePath, String destinationPath, VideoGenerationInfo info, Entry entry, ProgressCallback onProgress, Runnable onComplete, RunnableData<String> onCancel, RunnableData<Throwable> onFailure) {
+    Runnable act = () -> {
+      runningVideoGenerations.incrementAndGet();
+      convertVideo(sourcePath, destinationPath, info, entry, onProgress, onComplete, onCancel, onFailure, () -> {
+        runningVideoGenerations.decrementAndGet();
+        queue.post(this::checkPostponedVideoGenerations, 0);
+      });
+    };
+    pendingVideoGenerations.add(act);
+    checkPostponedVideoGenerations();
+  }
+
+  private void checkPostponedVideoGenerations () {
+    int maxParallelOps = maxParallelVideoGenerations();
+    while (!pendingVideoGenerations.isEmpty() && runningVideoGenerations.get() < maxParallelOps) {
+      Runnable act = pendingVideoGenerations.removeFirst();
+      act.run();
+    }
+  }
+
+  private void convertVideo (String sourcePath, String destinationPath, VideoGenerationInfo info, Entry entry, ProgressCallback onProgress, Runnable onComplete, RunnableData<String> onCancel, RunnableData<Throwable> onFailure, Runnable after) {
     try {
       if (Config.MODERN_VIDEO_TRANSCODING_ENABLED) {
-        convertVideoComplexV2(sourcePath, destinationPath, info, entry, onProgress, onComplete, onCancel, onFailure);
-      } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
-        convertVideoComplex(sourcePath, destinationPath, info, entry, onProgress, onComplete, onCancel, onFailure);
+        convertVideoComplexV2(sourcePath, destinationPath, info, entry, onProgress, onComplete, onCancel, onFailure, after);
+      } else if (Config.LEGACY_VIDEO_TRANSCODING_ENABLED) {
+        legacyConvertVideoComplex(this, UI.getAppContext(), sourcePath, destinationPath, info, entry, onProgress, onComplete, onCancel, onFailure, after);
       } else {
         onFailure.runWithData(new RuntimeException());
       }
@@ -331,7 +371,7 @@ public class VideoGen {
   }
 
   @TargetApi(Build.VERSION_CODES.LOLLIPOP)
-  private void convertVideoComplexV2 (String sourcePath, String destinationPath, VideoGenerationInfo info, Entry entry, ProgressCallback onProgress, Runnable onComplete, RunnableData<String> onCancel, RunnableData<Throwable> onFailure) throws FileNotFoundException {
+  private void convertVideoComplexV2 (String sourcePath, String destinationPath, VideoGenerationInfo info, Entry entry, ProgressCallback onProgress, Runnable onComplete, RunnableData<String> onCancel, RunnableData<Throwable> onFailure, Runnable after) throws FileNotFoundException {
     MediaMetadataRetriever retriever = U.openRetriever(sourcePath);
     if (retriever == null)
       throw new NullPointerException();
@@ -351,7 +391,7 @@ public class VideoGen {
     if (videoLimit == null)
       videoLimit = new Settings.VideoLimit();
 
-    int inputVideoFrameRate = getFrameRate(sourcePath);
+    int inputVideoFrameRate = getVideoFrameRate(UI.getAppContext(), sourcePath);
     int outputVideoFrameRate = videoLimit.getOutputFrameRate(inputVideoFrameRate);
 
     int outputVideoSquare;
@@ -368,7 +408,7 @@ public class VideoGen {
       outputVideoSquare = inputVideoWidth * inputVideoHeight;
     }
     long outputVideoBitrate = Math.min(
-      (videoLimit.bitrate != DefaultVideoStrategy.BITRATE_UNKNOWN ? videoLimit.bitrate :
+      (videoLimit.bitrate != Settings.VideoLimit.BITRATE_UNKNOWN ? videoLimit.bitrate :
       (int) Math.round(outputVideoSquare * outputVideoFrameRate * Settings.VideoLimit.BITRATE_SCALE)),
       inputVideoBitrate
     );
@@ -388,7 +428,9 @@ public class VideoGen {
       .setRemoveAudio(info.needMute());
 
     List<Effect> videoEffects = new ArrayList<>();
-    videoEffects.add(FrameDropEffect.createDefaultFrameDropEffect(outputVideoFrameRate));
+    if (outputVideoFrameRate != inputVideoFrameRate) {
+      videoEffects.add(FrameDropEffect.createDefaultFrameDropEffect(outputVideoFrameRate));
+    }
     if (outputHeightLimit > 0) {
       videoEffects.add(Presentation.createForHeight(outputHeightLimit));
     }
@@ -420,6 +462,7 @@ public class VideoGen {
             transformFinished.set(true);
             onComplete.run();
           }
+          U.run(after);
         }
 
         @Override
@@ -429,6 +472,7 @@ public class VideoGen {
             transformFinished.set(true);
             onFailure.runWithData(exportException);
           }
+          U.run(after);
         }
       });
     if (!editedMediaItem.removeAudio) {
@@ -472,129 +516,7 @@ public class VideoGen {
     progressRunner.run();
   }
 
-  private static DataSource toDataSource (String sourcePath) {
-    if (sourcePath.startsWith("content://")) {
-      return new UriDataSource(UI.getAppContext(), Uri.parse(sourcePath));
-    } else {
-      FilePathDataSource dataSource = new FilePathDataSource(sourcePath);
-      dataSource.initialize();
-      return dataSource;
-    }
-  }
-
-  private static int getFrameRate (String sourcePath) {
-    DataSource dataSource = toDataSource(sourcePath);
-    MediaFormat format = dataSource.getTrackFormat(TrackType.VIDEO);
-    return getFrameRate(format);
-  }
-
-  private static int getFrameRate (@Nullable MediaFormat format) {
-    if (format != null && format.containsKey(MediaFormat.KEY_FRAME_RATE)) {
-      return format.getInteger(MediaFormat.KEY_FRAME_RATE);
-    }
-    return -1;
-  }
-
-  @TargetApi(Build.VERSION_CODES.JELLY_BEAN_MR2)
-  private void convertVideoComplex (String sourcePath, String destinationPath, VideoGenerationInfo info, Entry entry, ProgressCallback onProgress, Runnable onComplete, RunnableData<String> onCancel, RunnableData<Throwable> onFailure) {
-    if (info.hasCrop()) {
-      throw new IllegalArgumentException();
-    }
-
-    DataSource dataSource = toDataSource(sourcePath);
-
-    if (info.needTrim()) {
-      long trimEnd = info.getEndTimeUs() == -1 ? 0 : dataSource.getDurationUs() - info.getEndTimeUs();
-      dataSource = new TrimDataSource(dataSource, info.getStartTimeUs(), trimEnd < 1000 ? 0 : trimEnd);
-    }
-
-    TrackStrategy videoTrackStrategy;
-    if (info.disableTranscoding()) {
-      videoTrackStrategy = new PassThroughTrackStrategy();
-    } else {
-      Settings.VideoLimit videoLimit = info.getVideoLimit();
-      if (videoLimit == null)
-        videoLimit = new Settings.VideoLimit();
-      long outputBitrate = videoLimit.bitrate;
-      int outputFrameRate = videoLimit.getOutputFrameRate(-1);
-      int maxTextureSize = U.getMaxTextureSize();
-      if (maxTextureSize > 0 && videoLimit.size.majorSize > maxTextureSize) {
-        float scale = (float) maxTextureSize / (float) videoLimit.size.majorSize;
-        int majorSize = (int) ((float) videoLimit.size.majorSize * scale);
-        majorSize -= majorSize % 2;
-        int minorSize = (int) ((float) videoLimit.size.minorSize * scale);
-        minorSize -= majorSize % 2;
-        videoLimit = videoLimit.changeSize(new Settings.VideoSize(majorSize, minorSize));
-      }
-      if (outputBitrate == DefaultVideoStrategy.BITRATE_UNKNOWN) {
-        MediaFormat format = dataSource.getTrackFormat(TrackType.VIDEO);
-        if (format != null) {
-          Settings.VideoSize outputSize = videoLimit.getOutputSize(
-            format.getInteger(MediaFormat.KEY_WIDTH),
-            format.getInteger(MediaFormat.KEY_HEIGHT)
-          );
-          int inputFrameRate = getFrameRate(format);
-          outputFrameRate = videoLimit.getOutputFrameRate(inputFrameRate);
-          outputBitrate = videoLimit.getOutputBitrate(outputSize, outputFrameRate, videoLimit.bitrate);
-        }
-      }
-      videoTrackStrategy = DefaultVideoStrategy
-        .atMost(videoLimit.size.minorSize, videoLimit.size.majorSize)
-        .frameRate(outputFrameRate)
-        .bitRate(outputBitrate)
-        .build();
-    }
-
-    int rotation = info.getRotate();
-
-    File outFile = new File(destinationPath);
-
-    entry.task = Transcoder
-      .into(destinationPath)
-      .addDataSource(dataSource)
-      .setVideoTrackStrategy(videoTrackStrategy)
-      .setAudioTrackStrategy(
-        info.needMute() ? new RemoveTrackStrategy() :
-        info.disableTranscoding() || Settings.instance().getNewSetting(Settings.SETTING_FLAG_NO_AUDIO_COMPRESSION) ? new PassThroughTrackStrategy() :
-          new DefaultAudioStrategy.Builder()
-            .sampleRate(44100)
-            .bitRate(62000)
-            .channels(2)
-            .build()
-      )
-      .setVideoRotation(rotation)
-      .setListener(new TranscoderListener() {
-        @Override
-        public void onTranscodeProgress (double progress) {
-          onProgress.onTranscodeProgress(progress, outFile.exists() ? outFile.length() : 0);
-        }
-
-        @Override
-        public void onTranscodeCompleted (int successCode) {
-          switch (successCode) {
-            case Transcoder.SUCCESS_TRANSCODED:
-              onComplete.run();
-              break;
-            case Transcoder.SUCCESS_NOT_NEEDED:
-              sendOriginal(info, entry);
-              break;
-          }
-        }
-
-        @Override
-        public void onTranscodeCanceled () {
-          onCancel.runWithData("Transcode canceled");
-        }
-
-        @Override
-        public void onTranscodeFailed (@NonNull Throwable exception) {
-          onFailure.runWithData(exception);
-        }
-      })
-      .transcode();
-  }
-
-  private void sendOriginal (VideoGenerationInfo info, Entry entry) {
+  public void sendOriginal (VideoGenerationInfo info, Entry entry) {
     final long generationId = info.getGenerationId();
     final String sourcePath = info.getOriginalPath();
     final String destinationPath = info.getDestinationPath();
@@ -660,5 +582,73 @@ public class VideoGen {
     return info.needTrim() ?
         videoData.editMovie(destinationPath, info.needMute(), info.getRotate(), (double) info.getStartTimeUs() / 1_000_000.0, info.getEndTimeUs() == -1 ? -1 : (double) info.getEndTimeUs() / 1_000_000.0, onProgress, isCancelled) :
         videoData.editMovie(destinationPath, info.needMute(), info.getRotate(), onProgress, isCancelled);
+  }
+
+  public static void appendTwoVideos(String firstVideoPath, String secondVideoPath, String output, boolean needTrimFirstVideo, double startTime, double endTime) throws IOException {
+    Movie[] inMovies = new Movie[2];
+
+    inMovies[0] = MovieCreator.build(firstVideoPath);
+    inMovies[1] = MovieCreator.build(secondVideoPath);
+
+    List<Track> videoTracks = new LinkedList<>();
+    List<Track> audioTracks = new LinkedList<>();
+
+    for (int a = 0; a < 2; a++) {
+      final Movie m = inMovies[a];
+      for (Track track : m.getTracks()) {
+        final Track outputTrack;
+        if (needTrimFirstVideo && a == 0 && startTime != -1 && endTime != -1) {
+          long currentSample = 0;
+          double currentTime = 0;
+          double lastTime = -1;
+          long startSample = -1;
+          long endSample = -1;
+          long timescale = track.getTrackMetaData().getTimescale();
+          for (long delta : track.getSampleDurations()) {
+            if (currentTime > lastTime && currentTime <= startTime) {
+              // current sample is still before the new starttime
+              startSample = currentSample;
+            }
+            if (currentTime > lastTime && currentTime <= endTime) {
+              // current sample is after the new start time and still before the new endtime
+              endSample = currentSample;
+            }
+            lastTime = currentTime;
+            currentTime += (double) delta / (double) timescale;
+            currentSample++;
+          }
+          if (startSample != -1 && endSample == -1) {
+            endSample = startSample + 1;
+          }
+          if (startSample == -1 || endSample == -1)
+            throw new IllegalArgumentException();
+          outputTrack = new CroppedTrack(track, startSample, endSample);
+        } else {
+          outputTrack =track;
+        }
+
+        if (track.getHandler().equals("soun")) {
+          audioTracks.add(outputTrack);
+        }
+        if (track.getHandler().equals("vide")) {
+          videoTracks.add(outputTrack);
+        }
+      }
+    }
+
+    Movie result = new Movie();
+    if (!audioTracks.isEmpty()) {
+      result.addTrack(new AppendTrack(audioTracks.toArray(new Track[audioTracks.size()])));
+    }
+    if (!videoTracks.isEmpty()) {
+      result.addTrack(new AppendTrack(videoTracks.toArray(new Track[videoTracks.size()])));
+    }
+
+    BasicContainer out = (BasicContainer) new DefaultMp4Builder().build(result);
+    try (RandomAccessFile f = new RandomAccessFile(output, "rw")) {
+      try (FileChannel fc = f.getChannel()) {
+        out.writeContainer(fc);
+      }
+    }
   }
 }

@@ -80,8 +80,9 @@ import me.vkryl.core.ColorUtils;
 import me.vkryl.core.StringUtils;
 import me.vkryl.core.collection.IntList;
 import me.vkryl.core.lambda.Destroyable;
-import me.vkryl.td.Td;
+import tgx.td.Td;
 
+@SuppressWarnings("unchecked")
 public abstract class MapController<V extends View, T> extends ViewController<MapController.Args> implements View.OnClickListener, LocationHelper.LocationChangeListener, MoreDelegate, FactorAnimator.Target, Client.ResultHandler, MessageListener, Comparator<MapController.LocationPoint<T>>, LiveLocationManager.Listener, ListUpdateCallback {
   protected static final int MODE_DROPPED_PIN = 0;
   protected static final int MODE_LIVE_LOCATION = 1;
@@ -99,7 +100,8 @@ public abstract class MapController<V extends View, T> extends ViewController<Ma
     public long locationOwnerChatId;
     public boolean isFaded;
 
-    public long chatId, messageThreadId;
+    public long chatId;
+    public TdApi.MessageTopic topicId;
 
     public Args (double latitude, double longitude) {
       this.mode = MODE_DROPPED_PIN;
@@ -122,9 +124,9 @@ public abstract class MapController<V extends View, T> extends ViewController<Ma
       return this;
     }
 
-    public Args setChatId (long chatId, long messageThreadId) {
+    public Args setChatId (long chatId, TdApi.MessageTopic messageTopicId) {
       this.chatId = chatId;
-      this.messageThreadId = messageThreadId;
+      this.topicId = messageTopicId;
       return this;
     }
 
@@ -787,7 +789,17 @@ public abstract class MapController<V extends View, T> extends ViewController<Ma
             Args args = getArgumentsStrict();
             inShareProgress = true;
             adapter.updateValuedSettingById(R.id.liveLocationSelf);
-            tdlib.sendMessage(args.chatId, args.messageThreadId, null, Td.newSendOptions(tdlib.chatDefaultDisableNotifications(args.chatId)), new TdApi.InputMessageLocation(new TdApi.Location(myLocation.latitude, myLocation.longitude, myLocation.accuracy), arg1, myLocation.heading, 0));
+            tdlib.sendMessage(
+              args.chatId,
+              args.topicId,
+              null,
+              Td.newSendOptions(
+                null,
+                tdlib.chatDefaultDisableNotifications(args.chatId)
+              ),
+              new TdApi.InputMessageLocation(
+                new TdApi.Location(myLocation.latitude, myLocation.longitude, myLocation.accuracy), arg1, myLocation.heading, 0)
+            );
           }
         });
         break;
@@ -1227,7 +1239,7 @@ public abstract class MapController<V extends View, T> extends ViewController<Ma
       this.inShareProgress = true;
       adapter.updateValuedSettingById(R.id.liveLocationSelf);
       if (msg != null) {
-        tdlib.client().send(new TdApi.EditMessageLiveLocation(msg.chatId, msg.id, null, null, 0, 0), tdlib.okHandler());
+        tdlib.client().send(new TdApi.EditMessageLiveLocation(msg.chatId, msg.id, null, null, 0, 0, 0), tdlib.okHandler());
       } else {
         locationHelper.receiveLocation(REQUEST_SHARE_LIVE, null, 10000, true);
       }

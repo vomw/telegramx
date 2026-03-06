@@ -19,6 +19,7 @@ import org.thunderdog.challegram.R;
 import org.thunderdog.challegram.component.attach.CustomItemAnimator;
 import org.thunderdog.challegram.core.Lang;
 import org.thunderdog.challegram.data.DoubleTextWrapper;
+import org.thunderdog.challegram.data.TD;
 import org.thunderdog.challegram.support.ViewSupport;
 import org.thunderdog.challegram.telegram.Tdlib;
 import org.thunderdog.challegram.telegram.TdlibCache;
@@ -43,7 +44,7 @@ import me.vkryl.android.widget.FrameLayoutFix;
 import me.vkryl.core.ArrayUtils;
 import me.vkryl.core.StringUtils;
 import me.vkryl.core.lambda.CancellableRunnable;
-import me.vkryl.td.Td;
+import tgx.td.Td;
 
 public class ChatSearchMembersView extends FrameLayout implements TdlibCache.BasicGroupDataChangeListener {
   private final MessagesController controller;
@@ -182,6 +183,11 @@ public class ChatSearchMembersView extends FrameLayout implements TdlibCache.Bas
 
   private void loadMembers (final String query, boolean isStart) {
     if (tdlib.isChannel(chatId)) return;
+
+    TdApi.Supergroup supergroup = tdlib.chatToSupergroup(chatId);
+    if (supergroup != null && !TD.canAccessMembers(supergroup)) {
+      return;
+    }
 
     boolean queryWasChanged = !StringUtils.equalsOrBothEmpty(query, currentQuery);
     if (this.isLoading && !queryWasChanged) {
@@ -474,7 +480,7 @@ public class ChatSearchMembersView extends FrameLayout implements TdlibCache.Bas
         return DoubleTextWrapper.valueOf(tdlib, (TdApi.ChatMember) object, false, true);
       }
       case TdApi.User.CONSTRUCTOR: {
-        return new DoubleTextWrapper(tdlib, ((TdApi.User) object).id, true);
+        return new DoubleTextWrapper(tdlib, ((TdApi.User) object).id, true, DoubleTextWrapper.SubtitleOption.SHOW_ACCESS_TO_MESSAGE_PRIVACY);
       }
     }
     return null;

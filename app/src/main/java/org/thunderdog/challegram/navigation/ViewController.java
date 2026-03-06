@@ -44,6 +44,7 @@ import android.view.ViewParent;
 import android.view.WindowManager;
 import android.view.animation.Interpolator;
 import android.widget.Button;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -109,6 +110,7 @@ import org.thunderdog.challegram.util.Crash;
 import org.thunderdog.challegram.util.OptionDelegate;
 import org.thunderdog.challegram.util.SimpleStringItem;
 import org.thunderdog.challegram.util.StringList;
+import org.thunderdog.challegram.util.text.Text;
 import org.thunderdog.challegram.util.text.TextEntity;
 import org.thunderdog.challegram.v.HeaderEditText;
 import org.thunderdog.challegram.widget.CustomTextView;
@@ -118,9 +120,11 @@ import org.thunderdog.challegram.widget.MaterialEditText;
 import org.thunderdog.challegram.widget.MaterialEditTextGroup;
 import org.thunderdog.challegram.widget.NoScrollTextView;
 import org.thunderdog.challegram.widget.PopupLayout;
+import org.thunderdog.challegram.widget.RootFrameLayout;
 import org.thunderdog.challegram.widget.SeparatorView;
 import org.thunderdog.challegram.widget.ShadowView;
 import org.thunderdog.challegram.widget.TimerView;
+import org.thunderdog.challegram.widget.decoration.BottomInsetFillingDecoration;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -151,8 +155,8 @@ import me.vkryl.core.lambda.RunnableData;
 import me.vkryl.core.lambda.RunnableInt;
 import me.vkryl.core.lambda.RunnableLong;
 import me.vkryl.core.reference.ReferenceList;
-import me.vkryl.td.ChatId;
-import me.vkryl.td.Td;
+import tgx.td.ChatId;
+import tgx.td.Td;
 
 // TODO separate Telegram-related stuff to TelegramViewController<T>. This will allow reusing navigation logic in other projects
 
@@ -202,7 +206,7 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
   }
 
   public void onInteractedWithContent () {
-    this.flags |= FLAG_CONTENT_INTERACTED;
+    setFlags(flags | FLAG_CONTENT_INTERACTED);
   }
 
   public boolean hasInteractedWithContent () {
@@ -282,6 +286,10 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
     ThemeListenerEntry entry;
     addThemeListener(entry = new ThemeListenerEntry(ThemeListenerEntry.MODE_TEXT_COLOR, colorId, view));
     return entry;
+  }
+
+  public final void addThemeCompoundDrawableColorListener (TextView view, @ColorId int colorId) {
+    addThemeListener(new ThemeListenerEntry(ThemeListenerEntry.MODE_COMPOUND_DRAWABLE_COLOR, colorId, view));
   }
 
   public final ThemeListenerEntry addOrUpdateThemeTextColorListener (Object view, @ColorId int colorId) {
@@ -412,24 +420,26 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
   }
 
   protected void attachNavigationController (NavigationController navigationController) {
-    this.flags |= FLAG_ATTACHED_TO_NAVIGATION;
+    setFlags(flags | FLAG_ATTACHED_TO_NAVIGATION);
     this.navigationController = navigationController;
     this.headerView = navigationController.getHeaderView();
     this.floatingButton = navigationController.getFloatingButton();
+    navigationController.applyBottomInset(this);
   }
 
   public void attachHeaderViewWithoutNavigation (HeaderView headerView) {
-    this.flags &= ~FLAG_ATTACHED_TO_NAVIGATION; // since it's false state
+    setFlags(this.flags & (~FLAG_ATTACHED_TO_NAVIGATION)); // since it's false state
     this.headerView = headerView;
     this.navigationController = null;
     this.floatingButton = null;
   }
 
   protected void detachNavigationController () {
-    this.flags &= ~FLAG_ATTACHED_TO_NAVIGATION;
+    setFlags(this.flags & (~FLAG_ATTACHED_TO_NAVIGATION));
     this.navigationController = null;
     this.headerView = null;
     this.floatingButton = null;
+    setBottomInset(0, 0);
   }
 
   protected final NavigationStack navigationStack () {
@@ -513,18 +523,6 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
   public boolean navigateTo (ViewController<?> c) {
     return !isStackLocked() && navigationController != null && navigationController.navigateTo(c);
   }
-
-  /*protected boolean navigateTo (Class<? extends ViewController> rawController) {
-    return (flags & FLAG_ATTACHED_TO_NAVIGATION) != 0 && navigationController.navigateTo(rawController);
-  }
-
-  protected boolean navigateTo (Class<? extends ViewController> rawController, Object args) {
-    return (flags & FLAG_ATTACHED_TO_NAVIGATION) != 0 && navigationController.navigateTo(rawController, args);
-  }*/
-
-  /*protected boolean navigateTo (ViewController<?> c, Object args) {
-    return (flags & FLAG_ATTACHED_TO_NAVIGATION) != 0 && navigationController.navigateTo(c, args);
-  }*/
 
   public boolean isAttachedToNavigationController () {
     return (flags & FLAG_ATTACHED_TO_NAVIGATION) != 0;
@@ -873,11 +871,7 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
     } else {
       this.lockFocusView = view;
     }
-    if (showAlways) {
-      flags |= FLAG_LOCK_ALWAYS;
-    } else {
-      flags &= ~FLAG_LOCK_ALWAYS;
-    }
+    setFlags(BitwiseUtils.setFlag(flags, FLAG_LOCK_ALWAYS, showAlways));
   }
 
   @CallSuper
@@ -1196,7 +1190,32 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
 
   private float lastPlayerFactor;
 
-  public void dispatchInnerMargins (int left, int top, int right, int bottom) {
+  protected int extraBottomInset;
+  protected int extraBottomInsetWithoutIme;
+
+  public final void setBottomInset (int extraBottomInset, int extraBottomInsetWithoutIme) {
+    if (this.extraBottomInset != extraBottomInset || this.extraBottomInsetWithoutIme != extraBottomInsetWithoutIme) {
+      this.extraBottomInset = extraBottomInset;
+      this.extraBottomInsetWithoutIme = extraBottomInsetWithoutIme;
+      onBottomInsetChanged(extraBottomInset, extraBottomInsetWithoutIme, extraBottomInset == extraBottomInsetWithoutIme);
+    }
+  }
+
+  public boolean supportsBottomInset () {
+    return false;
+  }
+
+  protected void onBottomInsetChanged (int extraBottomInset, int extraBottomInsetWithoutIme, boolean isImeInset) {
+    // override in children
+  }
+
+  protected final Rect systemInsets = new Rect();
+  protected final Rect systemInsetsWithoutIme = new Rect();
+
+  @CallSuper
+  public void dispatchSystemInsets (View parentView, ViewGroup.MarginLayoutParams originalParams, Rect legacyInsets, Rect insets, Rect insetsWithoutIme, Rect systemInsets, Rect systemInsetsWithoutIme, boolean fitsSystemWindows) {
+    this.systemInsets.set(insets);
+    this.systemInsetsWithoutIme.set(insetsWithoutIme);
     // override in children
   }
 
@@ -1300,11 +1319,7 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
   }
 
   public final void setShareCustomHeaderView (boolean share) {
-    if (share) {
-      flags |= FLAG_SHARE_CUSTOM_HEADER;
-    } else {
-      flags &= ~FLAG_SHARE_CUSTOM_HEADER;
-    }
+    setFlags(BitwiseUtils.setFlag(flags, FLAG_SHARE_CUSTOM_HEADER, share));
   }
 
   protected final boolean shareCustomHeaderView () {
@@ -1389,11 +1404,7 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
   }
 
   public void setSwipeNavigationEnabled (boolean enabled) {
-    if (!enabled) {
-      flags |= FLAG_SWIPE_DISABLED;
-    } else {
-      flags &= ~FLAG_SWIPE_DISABLED;
-    }
+    setFlags(BitwiseUtils.setFlag(flags, FLAG_SWIPE_DISABLED, !enabled));
   }
 
   protected boolean swipeNavigationEnabled () {
@@ -1409,11 +1420,11 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
   }
 
   protected final void enterCustomMode () {
-    flags |= FLAG_IN_CUSTOM_MODE;
+    setFlags(flags | FLAG_IN_CUSTOM_MODE);
   }
 
   protected final void leaveCustomMode () {
-    flags &= ~FLAG_IN_CUSTOM_MODE;
+    setFlags(flags & (~FLAG_IN_CUSTOM_MODE));
   }
 
   public final boolean inSearchMode () {
@@ -1429,37 +1440,56 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
   }
 
   protected final void enterSearchMode () {
-    flags |= FLAG_IN_SEARCH_MODE;
+    setFlags(flags | FLAG_IN_SEARCH_MODE);
   }
 
   protected void onAfterLeaveSearchMode () { }
 
   protected final void leaveSearchMode () {
-    flags &= ~FLAG_IN_SEARCH_MODE;
+    setFlags(flags & (~FLAG_IN_SEARCH_MODE));
     onAfterLeaveSearchMode();
     setSearchTransformFactor(0f, false);
   }
 
   public final void preventLeavingSearchMode () {
-    flags |= FLAG_PREVENT_LEAVING_SEARCH_MODE;
+    setFlags(flags | FLAG_PREVENT_LEAVING_SEARCH_MODE);
   }
 
   public final boolean inSelectMode () {
-    return (flags & FLAG_IN_SELECT_MODE) != 0;
+    return BitwiseUtils.hasFlag(flags, FLAG_IN_SELECT_MODE);
+  }
+
+  private boolean setFlags (int flags) {
+    if (this.flags != flags) {
+      int oldFlags = this.flags;
+      this.flags = flags;
+      int changedFlags = oldFlags ^ flags;
+      if (BitwiseUtils.hasFlag(changedFlags,
+        FLAG_IN_SELECT_MODE |
+          FLAG_IN_SEARCH_MODE |
+          FLAG_IN_CUSTOM_MODE
+      )) {
+        context.notifyBackPressAvailabilityChanged();
+      }
+      return true;
+    }
+    return false;
   }
 
   protected final void enterSelectMode () {
-    flags |= FLAG_IN_SELECT_MODE;
+    setFlags(flags | FLAG_IN_SELECT_MODE);
   }
 
   protected final void leaveSelectMode () {
-    flags &= ~FLAG_IN_SELECT_MODE;
+    setFlags(flags & (~FLAG_IN_SELECT_MODE));
   }
 
   public final void leaveTransformMode () {
+    int flags = this.flags;
     flags &= ~FLAG_IN_SELECT_MODE;
     flags &= ~FLAG_IN_SEARCH_MODE;
     flags &= ~FLAG_IN_CUSTOM_MODE;
+    setFlags(flags);
   }
 
   protected boolean useDrawer () {
@@ -1588,7 +1618,7 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
   }
 
   public MaterialEditTextGroup openInputAlert (CharSequence title, CharSequence placeholder, @StringRes int doneRes, @StringRes int cancelRes, @Nullable CharSequence value, @Nullable String defaultValue, InputAlertCallback callback, boolean hideKeyboard, RunnableData<ViewGroup> layoutOverride, ThemeDelegate forcedTheme) {
-    final MaterialEditTextGroup inputView = new MaterialEditTextGroup(context);
+    final MaterialEditTextGroup inputView = new MaterialEditTextGroup(context, tdlib);
     inputView.setHint(placeholder);
     inputView.getEditText().setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS);
     if (!StringUtils.isEmpty(value)) {
@@ -1874,6 +1904,44 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
     showSettings(new SettingsWrapBuilder(id).setRawItems(rawItems).setIntDelegate(delegate).setAllowResize(allowResize));
   }
 
+  private static class SettingsWrapLayout extends FrameLayoutFix implements RootFrameLayout.MarginModifier {
+    public SettingsWrapLayout (@NonNull Context context) {
+      super(context);
+    }
+
+    @Override
+    public void onApplyMarginInsets (View child, LayoutParams params, Rect legacyInsets, Rect insets, Rect insetsWithoutIme) {
+      Views.setMargins(params, insets.left, 0, insets.right, 0);
+      setBottomInset(insetsWithoutIme.bottom);
+    }
+
+    private int bottomInset;
+
+    private void setBottomInset (int extraBottomInsetWithoutIme) {
+      if (this.bottomInset != extraBottomInsetWithoutIme) {
+        this.bottomInset = extraBottomInsetWithoutIme;
+        if (footerView != null) {
+          footerView.setLayoutParams(FrameLayoutFix.newParams(ViewGroup.LayoutParams.MATCH_PARENT, Screen.dp(56f) + extraBottomInsetWithoutIme, Gravity.BOTTOM));
+          Views.setPaddingBottom(footerView, extraBottomInsetWithoutIme);
+        }
+        Views.applyBottomInset(recyclerView, footerView == null ? extraBottomInsetWithoutIme : 0);
+        Views.setBottomMargin(shadowView, Screen.dp(56f) + extraBottomInsetWithoutIme);
+      }
+    }
+
+    private RecyclerView recyclerView;
+    private FrameLayout footerView;
+    private SeparatorView shadowView;
+
+    private void setBottomInsetTargets (RecyclerView recyclerView, FrameLayout footerView, SeparatorView shadowView, int inset) {
+      this.recyclerView = recyclerView;
+      this.footerView = footerView;
+      this.shadowView = shadowView;
+      this.bottomInset = inset;
+    }
+  }
+
+  @SuppressWarnings("deprecation")
   public final @Nullable SettingsWrap showSettings (final SettingsWrapBuilder b) {
     if (isStackLocked()) {
       Log.i("Ignoring showSettings because stack is locked");
@@ -1906,8 +1974,8 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
       Collections.addAll(items, b.rawItems);
     }
 
-    final FrameLayoutFix popupView = new FrameLayoutFix(context);
-    popupView.setLayoutParams(FrameLayoutFix.newParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+    final SettingsWrapLayout settingsLayout = new SettingsWrapLayout(context);
+    settingsLayout.setLayoutParams(FrameLayoutFix.newParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
     final SettingsWrap settings = new SettingsWrap();
 
@@ -1941,13 +2009,21 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
         }
       }
     };
+    recyclerView.addItemDecoration(new BottomInsetFillingDecoration(ColorId.filling));
     settings.recyclerView = recyclerView;
     if (b.allowResize) {
       recyclerView.addItemDecoration(new RecyclerView.ItemDecoration() {
         @Override
         public void getItemOffsets (@NonNull Rect outRect, @NonNull View view, @NonNull RecyclerView parent, @NonNull RecyclerView.State state) {
           int position = parent.getChildAdapterPosition(view);
-          outRect.top = position == 0 ? Screen.currentHeight() / 2 + Screen.dp(12f) : 0;
+
+          if (position == 0) {
+            int contentHeight = settings.adapter.measureHeight(-1);
+            int controlsHeight = context.getRootView().getSystemInsetsWithoutIme().bottom + (b.disableFooter ? 0 : Screen.dp(56f));
+            outRect.top = Math.max((Screen.currentHeight() - controlsHeight) / 2, Screen.currentHeight() - contentHeight - controlsHeight);
+          } else {
+            outRect.top = 0;
+          }
         }
       });
     }
@@ -1962,7 +2038,7 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
       if (firstPosition == 0) {
         View view = manager.findViewByPosition(0);
         if (view != null) {
-          return Math.min(Screen.currentHeight(), Math.min(popupView.getMeasuredHeight() - view.getTop(), settings.adapter.measureHeight(-1)) + Screen.dp(56f) + (Screen.needsKeyboardPadding(context) ? Screen.getNavigationBarFrameHeight() : 0));
+          return Math.min(Screen.currentHeight(), Math.min(settingsLayout.getMeasuredHeight() - view.getTop(), settings.adapter.measureHeight(-1)) + Screen.dp(56f) + extraBottomInsetWithoutIme);
         }
       }
       return Screen.currentHeight();
@@ -1971,8 +2047,9 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
     if (b.needRootInsets) {
       popupLayout.setNeedRootInsets();
     }
-    popupLayout.addStatusBar();
+    // popupLayout.addStatusBar();
     popupLayout.setDismissListener(b.dismissListener);
+    popupLayout.setNeedFullScreen(true);
 
     final View.OnClickListener onClickListener = v -> {
       final int viewId = v.getId();
@@ -2018,7 +2095,7 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
       protected void setValuedSetting (ListItem item, SettingView view, boolean isUpdate) {
         switch (item.getViewType()) {
           case ListItem.TYPE_CHECKBOX_OPTION_DOUBLE_LINE: {
-            view.setData(item.getStringValue());
+            view.setData(item.getCharSequenceValue());
             break;
           }
           case ListItem.TYPE_CHECKBOX_OPTION:
@@ -2053,7 +2130,8 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
         }
       };
       ViewSupport.setThemedBackground(footerView, ColorId.filling, this);
-      footerView.setLayoutParams(FrameLayoutFix.newParams(ViewGroup.LayoutParams.MATCH_PARENT, Screen.dp(56f), Gravity.BOTTOM));
+      footerView.setLayoutParams(FrameLayoutFix.newParams(ViewGroup.LayoutParams.MATCH_PARENT, Screen.dp(56f) + extraBottomInsetWithoutIme, Gravity.BOTTOM));
+      Views.setPaddingBottom(footerView, extraBottomInsetWithoutIme);
 
       for (int i = 0; i < 2; i++) {
         TextView button = new NoScrollTextView(context);
@@ -2087,69 +2165,33 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
     }
 
     FrameLayoutFix.LayoutParams params = FrameLayoutFix.newParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM);
-    params.bottomMargin = footerView != null ? Screen.dp(56f) : 0;
+    params.bottomMargin = footerView != null ? Screen.dp(56f) + extraBottomInsetWithoutIme : 0;
 
+    Views.applyBottomInset(recyclerView, footerView == null ? extraBottomInsetWithoutIme : 0);
     recyclerView.setAdapter(settings.adapter);
     recyclerView.setLayoutParams(params);
-
-    popupView.addView(recyclerView);
-    if (footerView != null) {
-      popupView.addView(footerView);
-    }
+    addThemeInvalidateListener(recyclerView);
 
     SeparatorView shadowView = null;
 
+    settingsLayout.addView(recyclerView);
+    if (footerView != null) {
+      settingsLayout.addView(footerView);
+    }
+
     if (footerView != null) {
       params = FrameLayoutFix.newParams(ViewGroup.LayoutParams.MATCH_PARENT, Screen.dp(1f), Gravity.BOTTOM);
-      params.bottomMargin = Screen.dp(56f);
+      params.bottomMargin = Screen.dp(56f) + extraBottomInsetWithoutIme;
       shadowView = SeparatorView.simpleSeparator(context, params, true);
       shadowView.setAlignBottom();
       addThemeInvalidateListener(shadowView);
-      popupView.addView(shadowView);
+      settingsLayout.addView(shadowView);
     }
 
-    int popupAdditionalHeight = 0;
-
-    if (Screen.needsKeyboardPadding(context)) {
-      popupAdditionalHeight = Screen.getNavigationBarFrameHeight();
-
-      View dummyView = new View(context);
-      dummyView.setBackgroundColor(Theme.getColor(ColorId.filling));
-      addThemeBackgroundColorListener(dummyView, ColorId.filling);
-
-      FrameLayoutFix.LayoutParams modifiedParams = (FrameLayoutFix.LayoutParams) recyclerView.getLayoutParams();
-      modifiedParams.bottomMargin += popupAdditionalHeight;
-      recyclerView.setLayoutParams(modifiedParams);
-
-      if (footerView != null) {
-        modifiedParams = (FrameLayoutFix.LayoutParams) footerView.getLayoutParams();
-        modifiedParams.bottomMargin += popupAdditionalHeight;
-        footerView.setLayoutParams(modifiedParams);
-      }
-
-      if (shadowView != null) {
-        modifiedParams = (FrameLayoutFix.LayoutParams) shadowView.getLayoutParams();
-        modifiedParams.bottomMargin += popupAdditionalHeight;
-        shadowView.setLayoutParams(modifiedParams);
-      }
-
-      modifiedParams = FrameLayoutFix.newParams(ViewGroup.LayoutParams.MATCH_PARENT, popupAdditionalHeight, Gravity.BOTTOM);
-      dummyView.setLayoutParams(modifiedParams);
-
-      modifiedParams = FrameLayoutFix.newParams(ViewGroup.LayoutParams.MATCH_PARENT, Screen.dp(1f), Gravity.BOTTOM);
-      modifiedParams.bottomMargin = popupAdditionalHeight;
-
-      SeparatorView bottomShadowView = SeparatorView.simpleSeparator(context, modifiedParams, true);
-      bottomShadowView.setAlignBottom();
-      addThemeInvalidateListener(bottomShadowView);
-      popupView.addView(bottomShadowView);
-
-      popupView.addView(dummyView);
-      popupLayout.setNeedFullScreen(true);
-    }
+    settingsLayout.setBottomInsetTargets(recyclerView, footerView, shadowView, extraBottomInset);
 
     final int height = settings.adapter.measureHeight(-1);
-    final int desiredHeight = height + (footerView != null ? Screen.dp(56f) : 0) + popupAdditionalHeight;
+    final int desiredHeight = height + (footerView != null ? Screen.dp(56f) : 0) + extraBottomInsetWithoutIme;
     final int popupHeight = Math.min(Screen.currentHeight(), desiredHeight);
 
     if (desiredHeight > Screen.currentActualHeight() && checkedIndex != -1) {
@@ -2157,7 +2199,7 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
       ((LinearLayoutManager) recyclerView.getLayoutManager()).scrollToPositionWithOffset(checkedIndex, (Screen.currentActualHeight() - Screen.dp(56f)) / 2 - viewHeight / 2);
     }
     popupLayout.addThemeListeners(this);
-    popupLayout.showSimplePopupView(popupView, Math.min(Screen.currentHeight() / 2 + Screen.dp(56f), popupHeight));
+    popupLayout.showSimplePopupView(settingsLayout, Math.min(Screen.currentHeight() / 2 + Screen.dp(56f), popupHeight));
 
     onCreatePopupLayout(popupLayout);
     return settings;
@@ -2374,12 +2416,14 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
     public final OptionItem subtitle;
     public final OptionItem[] items;
     public boolean ignoreOtherPopUps;
+    public final int maxLineCount;
 
-    public Options (CharSequence info, CharSequence header, OptionItem subtitle, OptionItem[] items) {
+    public Options (CharSequence info, CharSequence header, OptionItem subtitle, OptionItem[] items, int maxLineCount) {
       this.info = info;
       this.title = header;
       this.subtitle = subtitle;
       this.items = items;
+      this.maxLineCount = maxLineCount;
     }
 
     public void setIgnoreOtherPopUps (boolean ignoreOtherPopUps) {
@@ -2391,6 +2435,7 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
       private CharSequence title;
       private OptionItem subtitle;
       private final List<OptionItem> items = new ArrayList<>();
+      private int maxLineCount = Text.LINE_COUNT_UNLIMITED;
 
       public Builder () {
       }
@@ -2439,21 +2484,30 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
         );
       }
 
+      public Builder maxLineCount (int maxLineCount) {
+        this.maxLineCount = maxLineCount;
+        return this;
+      }
+
       public int itemCount () {
         return items.size();
       }
 
       public Options build () {
-        return new Options(info, title, subtitle, items.toArray(new OptionItem[0]));
+        return new Options(info, title, subtitle, items.toArray(new OptionItem[0]), maxLineCount);
       }
     }
   }
 
   public final PopupLayout showOptions (CharSequence info, int[] ids, String[] titles, int[] colors, int[] icons, final OptionDelegate delegate, final @Nullable ThemeDelegate forcedTheme) {
-    return showOptions(getOptions(info, ids, titles, colors, icons), delegate, forcedTheme);
+    return showOptions(info, ids, titles, colors, icons, Text.LINE_COUNT_UNLIMITED, delegate, forcedTheme);
   }
 
-  public final Options getOptions (CharSequence info, int[] ids, String[] titles, int[] colors, int[] icons) {
+  public final PopupLayout showOptions (CharSequence info, int[] ids, String[] titles, int[] colors, int[] icons, int maxLineCount, final OptionDelegate delegate, final @Nullable ThemeDelegate forcedTheme) {
+    return showOptions(getOptions(info, ids, titles, colors, icons, maxLineCount), delegate, forcedTheme);
+  }
+
+  public final Options getOptions (CharSequence info, int[] ids, String[] titles, int[] colors, int[] icons, int maxLineCount) {
     OptionItem[] items = new OptionItem[ids.length];
     for (int i = 0; i < ids.length; i++) {
       items[i] = new OptionItem.Builder()
@@ -2463,7 +2517,7 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
         .icon(icons != null ? icons[i] : 0)
         .build();
     }
-    return new Options(info, null, null, items);
+    return new Options(info, null, null, items, maxLineCount);
   }
 
   public final PopupLayout showOptions (Options options, final OptionDelegate delegate) {
@@ -2477,11 +2531,11 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
     }
 
     final PopupLayout popupLayout = new PopupLayout(context);
-    int popupAdditionalHeight;
 
     popupLayout.setTag(this);
     popupLayout.init(true);
     popupLayout.setDismissOtherPopUps(!options.ignoreOtherPopUps);
+    popupLayout.setNeedFullScreen(true);
 
     if (delegate != null) {
       popupLayout.setDisableCancelOnTouchDown(delegate.disableCancelOnTouchdown());
@@ -2493,16 +2547,8 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
       optionsWrap.setSubtitle(options.subtitle);
     }
 
-    optionsWrap.setInfo(this, tdlib(), options.info, false);
+    optionsWrap.setInfo(this, tdlib(), options.info, false, options.maxLineCount);
     optionsWrap.setLayoutParams(FrameLayoutFix.newParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM));
-
-    if (Screen.needsKeyboardPadding(context)) {
-      popupAdditionalHeight = Screen.getNavigationBarFrameHeight();
-      optionsWrap.setPadding(0, 0, 0, popupAdditionalHeight);
-      popupLayout.setNeedFullScreen(true);
-    } else {
-      popupAdditionalHeight = 0;
-    }
 
     ShadowView shadowView = new ShadowView(context);
     shadowView.setSimpleTopShadow(true);
@@ -2525,7 +2571,7 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
         }
       };
     }
-    int totalHeight = shadowView.getLayoutParams().height + optionsWrap.getTextHeight() + popupAdditionalHeight;
+    int totalHeight = shadowView.getLayoutParams().height + optionsWrap.getTextHeight() + extraBottomInsetWithoutIme;
     int index = 0;
     for (OptionItem item : options.items) {
       if (item == OptionItem.SEPARATOR) {
@@ -2568,15 +2614,16 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
     int onBuildPopUp (PopupLayout popupLayout, OptionsLayout optionsLayout);
   }
 
-  public final PopupLayout showPopup (CharSequence title, boolean isTitle, @NonNull PopUpBuilder popUpBuilder, @Nullable ThemeDelegate forcedTheme) {
+  public final PopupLayout showPopup (CharSequence title, boolean isTitle, int maxLineCount, @NonNull PopUpBuilder popUpBuilder, @Nullable ThemeDelegate forcedTheme) {
     final PopupLayout popupLayout = new PopupLayout(context);
     popupLayout.setTag(this);
     popupLayout.init(true);
+    popupLayout.setNeedFullScreen(true);
 
     int totalHeight = 0;
 
     OptionsLayout optionsWrap = new OptionsLayout(context(), this, forcedTheme);
-    optionsWrap.setInfo(this, tdlib(), title, isTitle);
+    optionsWrap.setInfo(this, tdlib(), title, isTitle, maxLineCount);
     optionsWrap.setLayoutParams(FrameLayoutFix.newParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM));
     totalHeight += optionsWrap.getTextHeight();
 
@@ -2587,13 +2634,7 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
     totalHeight += shadowView.getLayoutParams().height;
 
     totalHeight += popUpBuilder.onBuildPopUp(popupLayout, optionsWrap);
-
-    if (Screen.needsKeyboardPadding(context)) {
-      int additionalHeight = Screen.getNavigationBarFrameHeight();
-      totalHeight += additionalHeight;
-      optionsWrap.setPadding(0, 0, 0, additionalHeight);
-      popupLayout.setNeedFullScreen(true);
-    }
+    totalHeight += extraBottomInsetWithoutIme;
 
     popupLayout.showSimplePopupView(optionsWrap, totalHeight);
     onCreatePopupLayout(popupLayout);
@@ -2601,7 +2642,7 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
   }
 
   public final PopupLayout showText (CharSequence title, CharSequence text, TextEntity[] entities, @Nullable ThemeDelegate forcedTheme) {
-    return showPopup(title, true, (popupLayout, optionsLayout) -> {
+    return showPopup(title, true, Text.LINE_COUNT_UNLIMITED, (popupLayout, optionsLayout) -> {
       CustomTextView textView = new CustomTextView(context, tdlib);
       textView.setPadding(Screen.dp(16f), Screen.dp(12f), Screen.dp(16f), Screen.dp(16f));
       textView.setTextColorId(ColorId.text);
@@ -2787,7 +2828,7 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
   }
 
   public final PopupLayout showDateTimePicker (Tdlib tdlib, CharSequence title, @StringRes int todayRes, @StringRes int tomorrowRes, @StringRes int futureRes, final RunnableLong callback, final @Nullable ThemeDelegate forcedTheme) {
-    return showPopup(title, true, (popupLayout, optionsWrap) -> {
+    return showPopup(title, true, Text.LINE_COUNT_UNLIMITED, (popupLayout, optionsWrap) -> {
       int contentHeight = 0;
       int pickerHeight = InfiniteRecyclerView.getItemHeight() * 5;
 
@@ -2815,6 +2856,7 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
         public void setColorFilter (@Nullable ColorFilter colorFilter) { }
 
         @Override
+        @SuppressWarnings("deprecation")
         public int getOpacity () {
           return PixelFormat.UNKNOWN;
         }
@@ -3110,7 +3152,7 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
   }
 
   protected final void preventHideKeyboardOnBlur () {
-    this.flags |= FLAG_PREVENT_KEYBOARD_HIDE;
+    setFlags(this.flags | FLAG_PREVENT_KEYBOARD_HIDE);
   }
 
   public final @Nullable View getWrapUnchecked () {
@@ -3177,21 +3219,23 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
 
   @CallSuper
   public void onActivityPause () {
+    int flags = this.flags;
     flags &= ~FLAG_KEYBOARD_SHOWN;
     flags |= FLAG_PAUSED;
+    setFlags(flags);
   }
 
   @CallSuper
   public void onActivityResume () {
     if (lockFocusView != null && lockFocusView.isEnabled() && isPaused() && (flags & FLAG_KEYBOARD_SHOWN) == 0 && navigationController != null && !navigationController.isAnimating()) {
       if (((flags & FLAG_LOCK_ALWAYS) != 0 || (flags & FLAG_KEYBOARD_STATE) != 0) && !context.isPasscodeShowing() && !context.isWindowPopupShowing()) {
-        flags |= FLAG_KEYBOARD_SHOWN;
+        setFlags(flags | FLAG_KEYBOARD_SHOWN);
         UI.showKeyboardDelayed(lockFocusView);
       } else {
         Keyboard.hide(lockFocusView);
       }
     }
-    flags &= ~FLAG_PAUSED;
+    setFlags(flags & (~FLAG_PAUSED));
   }
 
   @CallSuper
@@ -3236,12 +3280,12 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
       if (currentPopup != null) {
         ((Keyboard.OnStateChangeListener) currentPopup).closeAdditionalKeyboards();
       }
-      flags |= FLAG_KEYBOARD_STATE;
+      setFlags(flags | FLAG_KEYBOARD_STATE);
     } else {
       if ((flags & FLAG_KEYBOARD_STATE) == 0) {
         return false;
       }
-      flags &= ~FLAG_KEYBOARD_STATE;
+      setFlags(flags & (~FLAG_KEYBOARD_STATE));
     }
     if (currentPopup != null) {
       ((Keyboard.OnStateChangeListener) currentPopup).onKeyboardStateChanged(visible);
@@ -3317,7 +3361,7 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
   public final void onAttachStateChanged (NavigationController navigation, boolean isAttached) {
     boolean nowIsAttached = (this.flags & FLAG_ATTACH_STATE) != 0;
     if (nowIsAttached != isAttached) {
-      this.flags = BitwiseUtils.setFlag(this.flags, FLAG_ATTACH_STATE, isAttached);
+      setFlags(BitwiseUtils.setFlag(this.flags, FLAG_ATTACH_STATE, isAttached));
       if (attachListeners != null) {
         for (AttachListener listener : attachListeners) {
           listener.onAttachStateChanged(this, navigation, isAttached);
@@ -3357,6 +3401,24 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
       }
     }
   }*/
+
+  protected final void updateSettingView (SettingView v, ListItem item, boolean isUpdate) {
+    boolean value = Settings.instance().getNewSetting(item.getLongId());
+    if (item.getBoolValue())
+      value = !value;
+    v.getToggler().setRadioEnabled(value, isUpdate);
+  }
+
+  protected final void handleSettingClick (View v, SettingsAdapter adapter) {
+    ListItem item = (ListItem) v.getTag();
+    boolean value = adapter.toggleView(v);
+    if (item.getBoolValue())
+      value = !value;
+    Settings.instance().setNewSetting(item.getLongId(), value);
+    if (value && item.getLongId() == Settings.SETTING_FLAG_DOWNLOAD_BETAS) {
+      context().appUpdater().checkForUpdates();
+    }
+  }
 
   protected void onFocusStateChanged () { }
 
@@ -3409,11 +3471,13 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
 
   @CallSuper
   public void onFocus () {
+    int flags = this.flags;
     flags |= FLAG_FOCUSED;
     flags &= ~FLAG_PREVENT_LEAVING_SEARCH_MODE;
+    setFlags(flags);
     if (lockFocusView != null && lockFocusView.isEnabled() && (flags & FLAG_KEYBOARD_SHOWN) == 0) {
       if ((flags & FLAG_LOCK_ALWAYS) != 0) {
-        flags |= FLAG_KEYBOARD_SHOWN;
+        setFlags(this.flags | FLAG_KEYBOARD_SHOWN);
         Keyboard.show(lockFocusView);
         UI.showKeyboardDelayed(lockFocusView);
       }
@@ -3432,6 +3496,7 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
 
   @CallSuper
   public void onBlur () {
+    int flags = this.flags;
     flags &= ~FLAG_FOCUSED;
     if (lockFocusView != null && lockFocusView.isEnabled() && ((flags & FLAG_IN_SEARCH_MODE) != 0 || (flags & FLAG_KEYBOARD_SHOWN) != 0 || (flags & FLAG_KEYBOARD_STATE) != 0)) {
       flags &= ~FLAG_KEYBOARD_SHOWN;
@@ -3441,6 +3506,7 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
         Keyboard.hide(lockFocusView);
       }
     }
+    setFlags(flags);
     onFocusStateChanged();
     notifyFocusChanged(false);
     context.removeKeyEventListener(this);
@@ -3473,15 +3539,16 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
     return false;
   }
 
-  public boolean closeSearchModeByBackPress (boolean fromTop) {
+  public boolean closeSearchModeByBackPress (boolean fromTop, boolean commit) {
     return false;
   }
 
-  public boolean onBackPressed (boolean fromTop) {
+  @CallSuper
+  public boolean performOnBackPressed (boolean fromTop, boolean commit) {
     return false;
   }
 
-  public boolean passBackPressToActivity (boolean fromTop) {
+  public boolean needPassBackPressToActivity (boolean fromTop) {
     return false;
   }
 
@@ -3562,7 +3629,7 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
   @CallSuper
   public void destroy () {
     if ((flags & FLAG_DESTROYED) == 0) {
-      flags |= FLAG_DESTROYED;
+      setFlags(flags | FLAG_DESTROYED);
       if (localeChangers != null) {
         localeChangers.clear();
       }
@@ -3710,7 +3777,7 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
 
   public final void setInForceTouchMode (boolean inForceTouchMode) {
     if (isInForceTouchMode() != inForceTouchMode) {
-      this.flags = BitwiseUtils.setFlag(this.flags, FLAG_IN_FORCE_TOUCH_MODE, inForceTouchMode);
+      setFlags(BitwiseUtils.setFlag(this.flags, FLAG_IN_FORCE_TOUCH_MODE, inForceTouchMode));
       onForceTouchModeChanged(inForceTouchMode);
     }
   }
@@ -3739,7 +3806,7 @@ public abstract class ViewController<T> implements Future<View>, ThemeChangeList
 
   public final void maximizeFromPreview () {
     if (isInForceTouchMode() && (flags & FLAG_MAXIMIZING) == 0) {
-      flags |= FLAG_MAXIMIZING;
+      setFlags(flags | FLAG_MAXIMIZING);
       UI.forceVibrate(getValue(), false);
       context.closeForceTouch();
     }

@@ -18,5 +18,11 @@ import org.drinkless.tdlib.TdApi;
 
 public interface GroupCallListener {
   default void onGroupCallUpdated (TdApi.GroupCall groupCall) { }
-  default void onGroupCallParticipantUpdated (int groupCallId, TdApi.GroupCallParticipant groupCallParticipant) { }
+  default void onGroupCallParticipantUpdated (int groupCallId, TdApi.GroupCallParticipant participant) { }
+  default void onGroupCallParticipantsChanged (int groupCallId, long[] participantUserIds)                     { }
+  default void onNewGroupCallMessage (int groupCallId, TdApi.GroupCallMessage groupCallMessage) { }
+  default void onNewGroupCallPaidReaction (int groupCallId, TdApi.MessageSender senderId, long starCount) { }
+  default void onGroupCallMessageSendFailed (int groupCallId, int messageId, TdApi.Error error) { }
+  default void onGroupCallMessagesDeleted (int groupCallId, int[] messageIds) { }
+  default void onGroupCallVerificationStateChanged (int groupCallId, int generation, String[] emojis)          { }
 }

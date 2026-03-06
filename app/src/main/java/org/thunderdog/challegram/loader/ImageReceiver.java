@@ -46,6 +46,7 @@ import me.vkryl.core.ColorUtils;
 import me.vkryl.core.MathUtils;
 import me.vkryl.core.StringUtils;
 
+@SuppressWarnings("unchecked")
 public class ImageReceiver implements Watcher, ValueAnimator.AnimatorUpdateListener, Receiver, ImageFile.CropStateChangeListener {
   private static boolean ANIMATION_ENABLED;
 
@@ -99,7 +100,6 @@ public class ImageReceiver implements Watcher, ValueAnimator.AnimatorUpdateListe
     }
   }
 
-  /** @noinspection unchecked*/
   @Override
   public final ImageReceiver setUpdateListener (ReceiverUpdateListener listener) {
     this.updateListener = listener;
@@ -107,6 +107,7 @@ public class ImageReceiver implements Watcher, ValueAnimator.AnimatorUpdateListe
   }
 
   @Override
+  @SuppressWarnings("deprecation")
   public void invalidate () {
     if (view != null) {
       /*if (drawRegion.isEmpty()) {
@@ -201,8 +202,8 @@ public class ImageReceiver implements Watcher, ValueAnimator.AnimatorUpdateListe
     } else {
       ratio = Math.min(widthRatio, heightRatio);
     }
-    sourceWidth *= ratio;
-    sourceHeight *= ratio;
+    sourceWidth = (int) ((float) sourceWidth * ratio);
+    sourceHeight = (int) ((float) sourceHeight * ratio);
     return sourceWidth;
   }
 
@@ -246,8 +247,8 @@ public class ImageReceiver implements Watcher, ValueAnimator.AnimatorUpdateListe
     } else {
       ratio = Math.min(widthRatio, heightRatio);
     }
-    sourceWidth *= ratio;
-    sourceHeight *= ratio;
+    sourceWidth = (int) ((float) sourceWidth * ratio);
+    sourceHeight = (int) ((float) sourceHeight * ratio);
     return sourceHeight;
   }
 
@@ -358,7 +359,7 @@ public class ImageReceiver implements Watcher, ValueAnimator.AnimatorUpdateListe
 
   @Override
   public void onCropStateChanged (ImageFile file, CropState newCropState) {
-    if (!displayCrop.compare(newCropState)) {
+    if (!displayCrop.equalsTo(newCropState)) {
       displayCrop.set(newCropState);
       forceBoundsLayout();
       invalidateFully();
@@ -994,7 +995,7 @@ public class ImageReceiver implements Watcher, ValueAnimator.AnimatorUpdateListe
     ImageFile currentFile = this.file;
     if (compareToFile(currentFile, file)) {
       if (successful) {
-        handler.display(this, currentFile, (Bitmap) bitmap);
+        handler.display(this, currentFile, bitmap);
       } else {
         setBundle(currentFile, null, false);
       }
@@ -1130,8 +1131,8 @@ public class ImageReceiver implements Watcher, ValueAnimator.AnimatorUpdateListe
           int availHeight = bottom - top;
 
           float ratio = Math.min((float) availWidth / (float) sourceWidth, (float) availHeight / (float) sourceHeight);
-          sourceWidth *= ratio;
-          sourceHeight *= ratio;
+          sourceWidth = (int) ((float) sourceWidth * ratio);
+          sourceHeight = (int) ((float) sourceHeight * ratio);
 
           int centerX = (left + right) / 2;
           int centerY = (top + bottom) / 2;
@@ -1147,6 +1148,7 @@ public class ImageReceiver implements Watcher, ValueAnimator.AnimatorUpdateListe
     return false;
   }
 
+  @SuppressWarnings("deprecation")
   public Paint getBitmapPaint () {
     float alpha = (float) metadataPaint.getAlpha() / 255f;
     if (porterDuffColorIsId && porterDuffColor == ColorId.NONE) {
@@ -1178,8 +1180,17 @@ public class ImageReceiver implements Watcher, ValueAnimator.AnimatorUpdateListe
         c.save();
         c.rotate(rotation, left + (right - left) / 2f, top + (bottom - top) / 2f);
       }
+      float scaleType = file.getScaleType();
+      boolean hasScale = scaleType == ImageFile.CENTER_CROP || scaleType == ImageFile.FIT_CENTER;
+      if (hasScale) {
+        c.save();
+        c.clipRect(left, top, right, bottom);
+      }
       drawRoundRect(c, roundRect, radius, radius, roundPaint);
       if (rotation != 0) {
+        c.restore();
+      }
+      if (hasScale) {
         c.restore();
       }
     } else if (file.getScaleType() == ImageFile.CENTER_REPEAT) {

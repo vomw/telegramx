@@ -28,8 +28,8 @@ import org.thunderdog.challegram.util.text.Highlight;
 
 import me.vkryl.core.BitwiseUtils;
 import me.vkryl.core.StringUtils;
-import me.vkryl.td.ChatId;
-import me.vkryl.td.Td;
+import tgx.td.ChatId;
+import tgx.td.Td;
 
 public class TGFoundChat {
   private static final int FLAG_SECRET = 1;
@@ -406,10 +406,6 @@ public class TGFoundChat {
 
   public void setMessageThread (ThreadInfo messageThread) {
     this.messageThread = messageThread;
-  }
-
-  public long getMessageThreadId () {
-    return messageThread != null ? messageThread.getMessageThreadId() : 0;
   }
 
   public ThreadInfo getMessageThread () {

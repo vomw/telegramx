@@ -45,8 +45,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 import me.vkryl.core.lambda.RunnableData;
-import me.vkryl.td.Td;
+import tgx.td.Td;
 
+@SuppressWarnings("unchecked")
 public abstract class SettingsCloudController<T extends Settings.CloudSetting> extends RecyclerViewController<SettingsCloudController.Args<T>> implements View.OnClickListener, FileUpdateListener, TdlibFilesManager.FileListener {
   private final long tutorialFlag;
   private final @StringRes int tutorialStringRes, currentStringRes, builtinStringRes, installedStringRes, updateStringRes, installingStringRes;
@@ -193,12 +194,14 @@ public abstract class SettingsCloudController<T extends Settings.CloudSetting> e
   }
 
   @Override
-  public boolean onBackPressed (boolean fromTop) {
+  public boolean performOnBackPressed (boolean fromTop, boolean commit) {
     if (installingSetting != null) {
-      showUnsavedChangesPromptBeforeLeaving(() -> selectSetting(getCurrentSetting()));
+      if (commit) {
+        showUnsavedChangesPromptBeforeLeaving(() -> selectSetting(getCurrentSetting()));
+      }
       return true;
     }
-    return super.onBackPressed(fromTop);
+    return super.performOnBackPressed(fromTop, commit);
   }
 
   private void updateSetting (T setting) {
@@ -322,7 +325,7 @@ public abstract class SettingsCloudController<T extends Settings.CloudSetting> e
               }
             });
           } else {
-            tdlib.files().addCloudReference(file, this, false);
+            tdlib.files().addCloudReference(file, TdlibFilesManager.PRIORITY_SERVICE_FILES, this, false);
           }
         }
       });

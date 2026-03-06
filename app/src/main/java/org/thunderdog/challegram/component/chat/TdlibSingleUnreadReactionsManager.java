@@ -30,7 +30,7 @@ import java.util.Iterator;
 
 import me.vkryl.core.lambda.Destroyable;
 import me.vkryl.core.reference.ReferenceLongMap;
-import me.vkryl.td.Td;
+import tgx.td.Td;
 
 public class TdlibSingleUnreadReactionsManager implements ChatListener, MessageListener, Destroyable {
   private final Tdlib tdlib;
@@ -132,8 +132,8 @@ public class TdlibSingleUnreadReactionsManager implements ChatListener, MessageL
         }
       };
       tdlib.client().send(new TdApi.SearchChatMessages(
-        chatId, null, null, 0, 0, 100,
-        new TdApi.SearchMessagesFilterUnreadReaction(), 0, 0), handler
+        chatId, null, null, null, 0, 0, 100,
+        new TdApi.SearchMessagesFilterUnreadReaction()), handler
       );
     }
 

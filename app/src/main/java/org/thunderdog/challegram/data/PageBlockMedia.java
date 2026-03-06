@@ -63,7 +63,7 @@ import java.util.ArrayList;
 
 import me.vkryl.android.widget.FrameLayoutFix;
 import me.vkryl.core.StringUtils;
-import me.vkryl.td.Td;
+import tgx.td.Td;
 
 public class PageBlockMedia extends PageBlock implements MediaWrapper.OnClickListener, MediaCollectorDelegate, MediaViewDelegate {
   public static final float MEDIA_MARGIN = 16f, MEDIA_POST_MARGIN = 8f;
@@ -145,7 +145,7 @@ public class PageBlockMedia extends PageBlock implements MediaWrapper.OnClickLis
   public PageBlockMedia (ViewController<?> context, TdApi.PageBlockVideo video) {
     super(context, video);
     if (video.video != null) {
-      wrapper = new MediaWrapper(context.context(), context.tdlib(), video.video, 0, 0, null, false);
+      wrapper = new MediaWrapper(context.context(), context.tdlib(), video.video, null, 0, 0, null, false);
       initWrapper(wrapper);
       setCaption(video.caption);
     }
@@ -198,7 +198,7 @@ public class PageBlockMedia extends PageBlock implements MediaWrapper.OnClickLis
         case TdApi.PageBlockVideo.CONSTRUCTOR: {
           TdApi.PageBlockVideo video = (TdApi.PageBlockVideo) pageBlock;
           if (video.video != null) {
-            wrapper = new MediaWrapper(context.context(), context.tdlib(), video.video, 0, 0, null, false);
+            wrapper = new MediaWrapper(context.context(), context.tdlib(), video.video, null, 0, 0, null, false);
             initWrapper(wrapper);
             caption = video.caption;
           }
@@ -361,7 +361,7 @@ public class PageBlockMedia extends PageBlock implements MediaWrapper.OnClickLis
 
     final int maxWidth = width - getMinimumContentPadding(false) - getMinimumContentPadding(true);
     final float maxHeightFactor = collageContext != null ? .78f : isCover || isList ? 1.2f : 1.78f;
-    final int maxHeight = (int) ((float) Math.min(width * maxHeightFactor, (isCover ? Screen.widestSide() : Screen.currentHeight()) - HeaderView.getSize(true) * 2 - Screen.dp(16f) * 2));
+    final int maxHeight = (int) (Math.min(width * maxHeightFactor, (isCover ? Screen.widestSide() : Screen.currentHeight()) - HeaderView.getSize(true) * 2 - Screen.dp(16f) * 2));
 
     if (embedded != null) {
       if (isUnknownHeight()) {
@@ -552,7 +552,8 @@ public class PageBlockMedia extends PageBlock implements MediaWrapper.OnClickLis
       if (wrapper.getPhoto() != null) {
         parsedItem = MediaItem.valueOf(context.context(), context.tdlib(), wrapper.getPhoto(), captionText);
       } else if (wrapper.getVideo() != null) {
-        parsedItem = MediaItem.valueOf(context.context(), context.tdlib(), wrapper.getVideo(), captionText);
+        // TODO: TDLib/server doesn't have alternativeVideos in PageBlockVideo
+        parsedItem = MediaItem.valueOf(context.context(), context.tdlib(), wrapper.getVideo(), null, null, captionText);
       } else if (wrapper.getAnimation() != null) {
         parsedItem = MediaItem.valueOf(context.context(), context.tdlib(), wrapper.getAnimation(), captionText);
       } else {
@@ -578,11 +579,6 @@ public class PageBlockMedia extends PageBlock implements MediaWrapper.OnClickLis
     MediaViewController.openWithStack(context, stack, source, this, forceThumbs);
 
     return true;
-  }
-
-  @Override
-  public MediaStack collectMedias (long fromMessageId, @Nullable TdApi.SearchMessagesFilter filter) {
-    return null;
   }
 
   @Override

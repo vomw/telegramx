@@ -1,4 +1,5 @@
 import os
+import re
 
 
 def find_file(name):
@@ -22,7 +23,7 @@ def replace_method_body(file_path, method_signature, new_body):
         print(f"Method signature not found: {method_signature}")
         return
 
-    # Find the opening brace of the method
+    # Find the opening brace of the method after the signature
     brace_start = content.find("{", start_idx)
     if brace_start == -1:
         return
@@ -43,9 +44,9 @@ def replace_method_body(file_path, method_signature, new_body):
         new_content = (
             content[:brace_start]
             + "{\n    "
-            + new_body
-            + "\n  }"
-            + content[brace_end + 1 :]
+    + new_body
+    + "\n  }"
+  + content[brace_end + 1 :]
         )
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(new_content)
@@ -72,14 +73,13 @@ def main():
     )
 
     # 3. Neuter Google Play update manager in constructor
-    # Use simple replacement for the constructor lines
     with open(app_updater_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    import re
-
+    # Escape the dots to be safe and match the constructor part exactly
+    # We use non-greedy matching .*? for safety
     new_content = re.sub(
-        r"AppUpdateManager appUpdateManager = null;.*?this.googlePlayUpdateManager = appUpdateManager;",
+        r"AppUpdateManager appUpdateManager = null;.*?this\.googlePlayUpdateManager = appUpdateManager;",
         r"this.googlePlayUpdateManager = null;",
         content,
         flags=re.DOTALL,
@@ -88,6 +88,17 @@ def main():
         with open(app_updater_path, "w", encoding="utf-8") as f:
             f.write(new_content)
         print(f"Successfully modified constructor in: {app_updater_path}")
+
+    # 4. Neuter offerUpdate() methods if they exist
+    replace_method_body(
+        app_updater_path, "public void offerUpdate ()", "// Disabled by CI"
+    )
+    replace_method_body(
+        app_updater_path, "private boolean offerGooglePlayUpdate ()", "return false;"
+    )
+    replace_method_body(
+        app_updater_path, "private boolean offerTelegramChannelUpdate ()", "return false;"
+    )
 
     print("Update checker removal complete.")
 

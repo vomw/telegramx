@@ -18,3 +18,4 @@ obj
 /local.properties
 
 libc++_shared.so
+job-logs.txt

@@ -19,13 +19,14 @@ jobs:
       - name: Checkout target repository
         uses: actions/checkout@v4
         with:
-          # repository: TGX-Android/Telegram-X
-          repository: ${{ github.repository }}
+          repository: TGX-Android/Telegram-X
+          # the current repo is read only
+          # repository: ${{ github.repository }}
           fetch-depth: 0
           submodules: false
           lfs: true
 
-
+      # need this step when the working repo is not the current repo
       - name: Checkout helper scripts
         uses: actions/checkout@v4
         with:

@@ -110,6 +110,18 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
 
+      - name: Modify Avatars to Square
+        run: |
+          python helpers/ci/modify_avatars.py
+          git status
+
+
+      - name: Remove Update Checker
+        run: |
+          python helpers/ci/remove_update_checker.py
+          git status
+
+
       - name: Rename Package
         run: |
           python helpers/ci/rename_package.py "org.thunderdog.challegram" "xi.jin.pooh"

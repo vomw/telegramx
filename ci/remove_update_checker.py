@@ -1,6 +1,7 @@
 import os
 import re
 
+
 def replace_in_file(file_path, pattern, replacement, multi_line=True):
     if not os.path.exists(file_path):
         print(f"File not found: {file_path}")
@@ -16,6 +17,7 @@ def replace_in_file(file_path, pattern, replacement, multi_line=True):
     with open(file_path, "w", encoding="utf-8") as f:
         f.write(new_content)
 
+
 def main():
     print("Removing update checker...")
 
@@ -28,24 +30,25 @@ def main():
     replace_in_file(
         app_updater_path,
         r"public void checkForUpdates\s*\(\)\s*\{.*?\}",
-        r"public void checkForUpdates() {\n    // Disabled by CI\n  }"
+        r"public void checkForUpdates() {\n    // Disabled by CI\n  }",
     )
 
     # 2. Neuter Google Play update manager initialization in constructor
     replace_in_file(
         app_updater_path,
         r"AppUpdateManager appUpdateManager = null;.*?this\.googlePlayUpdateManager = appUpdateManager;",
-        r"this.googlePlayUpdateManager = null;"
+        r"this.googlePlayUpdateManager = null;",
     )
 
     # 3. Neuter checkForTelegramChannelUpdates()
     replace_in_file(
         app_updater_path,
         r"private void checkForTelegramChannelUpdates\s*\(\)\s*\{.*?\}",
-        r"private void checkForTelegramChannelUpdates() {\n    onUpdateUnavailable();\n  }"
+        r"private void checkForTelegramChannelUpdates() {\n    onUpdateUnavailable();\n  }",
     )
 
     print("Update checker removal complete.")
+
 
 if __name__ == "__main__":
     main()

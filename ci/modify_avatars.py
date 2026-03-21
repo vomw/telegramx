@@ -91,8 +91,7 @@ def main():
         replace_in_file(
             joined_path,
             r"c\.drawCircle\(cx, centerY, avatarRadius, paint\);",
-            "c.drawRect(cx - avatarRadius, centerY - avatarRadius, cx + avatarRadius, centerY + avatarRadius, paint);
-",
+            "c.drawRect(cx - avatarRadius, centerY - avatarRadius, cx + avatarRadius, centerY + avatarRadius, paint);",
         )
 
     print("Avatar modification complete.")

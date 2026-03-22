@@ -44,9 +44,9 @@ def replace_method_body(file_path, method_signature, new_body):
         new_content = (
             content[:brace_start]
             + "{\n    "
-    + new_body
-    + "\n  }"
-  + content[brace_end + 1 :]
+            + new_body
+            + "\n  }"
+            + content[brace_end + 1 :]
         )
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(new_content)
@@ -97,7 +97,9 @@ def main():
         app_updater_path, "private boolean offerGooglePlayUpdate ()", "return false;"
     )
     replace_method_body(
-        app_updater_path, "private boolean offerTelegramChannelUpdate ()", "return false;"
+        app_updater_path,
+        "private boolean offerTelegramChannelUpdate ()",
+        "return false;",
     )
 
     print("Update checker removal complete.")

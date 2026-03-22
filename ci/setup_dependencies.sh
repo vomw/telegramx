@@ -14,6 +14,11 @@ set -o pipefail
 # KEYSTORE_PASSWORD (optional)
 # KEY_ALIAS (optional)
 # KEY_PASSWORD (optional)
+# APP_LABEL
+# OLD_PACKAGE_NAME
+# NEW_PACKAGE_NAME
+# YOUTUBE_API_KEY
+
 
 # 1. Git Optimizations
 git config --global http.postBuffer 1048576000
@@ -32,6 +37,7 @@ export PATH=$PATH:$(pwd)/scripts
 
 # 3. Patch scripts using the independent Python script
 python3 "${HELPERS_DIR}/patch_scripts.py"
+python3 "${HELPERS_DIR}/rename_package.py" "$OLD_PACKAGE_NAME" "$NEW_PACKAGE_NAME"
 
 # 4. Disable reset.sh to protect potential cache remnants
 echo "#!/bin/bash" > scripts/reset.sh
@@ -89,14 +95,12 @@ sdk.dir=$ANDROID_SDK_ROOT
 org.gradle.workers.max=$CPU_COUNT
 telegram.api_id=$TELEGRAM_API_ID
 telegram.api_hash=$TELEGRAM_API_HASH
-# app.id=org.example.tgx # when not specify 
-# app.id=org.thunderdog.challegram
-# other app.id require changing source code
-app.id=xi.jin.pooh
-app.name=Xi Jin Pooh
+app.id=$NEW_PACKAGE_NAME
+app.name=$APP_LABEL
 app.download_url=https://github.com/$GITHUB_REPOSITORY
 app.sources_url=https://github.com/$GITHUB_REPOSITORY
 keystore.file=$(pwd)/$KS_PROP_FILE
+youtube.api_key=$YOUTUBE_API_KEY
 EOF
 }
 

@@ -17,7 +17,6 @@ set -o pipefail
 # APP_LABEL
 # OLD_PACKAGE_NAME
 # NEW_PACKAGE_NAME
-# YOUTUBE_API_KEY
 
 
 # 1. Git Optimizations
@@ -100,7 +99,6 @@ app.name=$APP_LABEL
 app.download_url=https://github.com/$GITHUB_REPOSITORY
 app.sources_url=https://github.com/$GITHUB_REPOSITORY
 keystore.file=$(pwd)/$KS_PROP_FILE
-youtube.api_key=$YOUTUBE_API_KEY
 EOF
 }
 

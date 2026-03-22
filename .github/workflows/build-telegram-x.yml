@@ -112,7 +112,6 @@ jobs:
           APP_LABEL: ${{ secrets.APP_LABEL }}
           OLD_PACKAGE_NAME: ${{ secrets.OLD_PACKAGE_NAME }}
           NEW_PACKAGE_NAME: ${{ secrets.NEW_PACKAGE_NAME }}
-          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
 
 
       - name: Modify Avatars to Square

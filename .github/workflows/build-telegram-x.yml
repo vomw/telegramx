@@ -154,9 +154,8 @@ jobs:
 
       - name: Verify APK launcher icon
         run: |
-          find "$ANDROID_SDK_ROOT" -iname aapt
           "$ANDROID_SDK_ROOT/build-tools/36.1.0/aapt" dump badging "${{ steps.sign-apk.outputs.final_name || 'app-release-signed.apk' }}"
-          which aapt
+          "$ANDROID_SDK_ROOT/build-tools/36.1.0/aapt" dump badging "${{ steps.sign-apk.outputs.final_name || 'app-release-signed.apk' }}" | grep icon
         env:
           ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
 

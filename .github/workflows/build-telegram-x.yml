@@ -33,6 +33,22 @@ jobs:
           path: helpers
 
 
+      - name: Replace launcher icons
+        run: |
+          which install
+          install -D helpers/ci/app/src/main/res/mipmap-hdpi/app_launcher.png app/src/main/res/mipmap-hdpi/app_launcher.png
+          install -D helpers/ci/app/src/main/res/mipmap-hdpi/app_launcher_round.png app/src/main/res/mipmap-hdpi/app_launcher_round.png
+          install -D helpers/ci/app/src/main/res/mipmap-mdpi/app_launcher.png app/src/main/res/mipmap-mdpi/app_launcher.png
+          install -D helpers/ci/app/src/main/res/mipmap-mdpi/app_launcher_round.png app/src/main/res/mipmap-mdpi/app_launcher_round.png
+          install -D helpers/ci/app/src/main/res/mipmap-xhdpi/app_launcher.png app/src/main/res/mipmap-xhdpi/app_launcher.png
+          install -D helpers/ci/app/src/main/res/mipmap-xhdpi/app_launcher_round.png app/src/main/res/mipmap-xhdpi/app_launcher_round.png
+          install -D helpers/ci/app/src/main/res/mipmap-xxhdpi/app_launcher.png app/src/main/res/mipmap-xxhdpi/app_launcher.png
+          install -D helpers/ci/app/src/main/res/mipmap-xxhdpi/app_launcher_round.png app/src/main/res/mipmap-xxhdpi/app_launcher_round.png
+          install -D helpers/ci/app/src/main/res/mipmap-xxxhdpi/app_launcher.png app/src/main/res/mipmap-xxxhdpi/app_launcher.png
+          install -D helpers/ci/app/src/main/res/mipmap-xxxhdpi/app_launcher_round.png app/src/main/res/mipmap-xxxhdpi/app_launcher_round.package_name
+          git status
+
+
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:

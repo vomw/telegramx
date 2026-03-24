@@ -35,7 +35,6 @@ jobs:
 
       - name: Replace launcher icons
         run: |
-          which install
           install -D helpers/ci/app/src/main/res/mipmap-hdpi/app_launcher.png app/src/main/res/mipmap-hdpi/app_launcher.png
           install -D helpers/ci/app/src/main/res/mipmap-hdpi/app_launcher_round.png app/src/main/res/mipmap-hdpi/app_launcher_round.png
           install -D helpers/ci/app/src/main/res/mipmap-mdpi/app_launcher.png app/src/main/res/mipmap-mdpi/app_launcher.png
@@ -46,7 +45,9 @@ jobs:
           install -D helpers/ci/app/src/main/res/mipmap-xxhdpi/app_launcher_round.png app/src/main/res/mipmap-xxhdpi/app_launcher_round.png
           install -D helpers/ci/app/src/main/res/mipmap-xxxhdpi/app_launcher.png app/src/main/res/mipmap-xxxhdpi/app_launcher.png
           install -D helpers/ci/app/src/main/res/mipmap-xxxhdpi/app_launcher_round.png app/src/main/res/mipmap-xxxhdpi/app_launcher_round.png
-          rmdir -rfv app/src/main/res/mipmap-anydpi-v26
+          which rmdir
+          rmdir -h
+          rmdir -fv app/src/main/res/mipmap-anydpi-v26
           git status
 
 

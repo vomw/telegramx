@@ -46,6 +46,7 @@ jobs:
           install -D helpers/ci/app/src/main/res/mipmap-xxhdpi/app_launcher_round.png app/src/main/res/mipmap-xxhdpi/app_launcher_round.png
           install -D helpers/ci/app/src/main/res/mipmap-xxxhdpi/app_launcher.png app/src/main/res/mipmap-xxxhdpi/app_launcher.png
           install -D helpers/ci/app/src/main/res/mipmap-xxxhdpi/app_launcher_round.png app/src/main/res/mipmap-xxxhdpi/app_launcher_round.png
+          rmdir -rfv app/src/main/res/mipmap-anydpi-v26
           git status
 
 

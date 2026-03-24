@@ -45,7 +45,7 @@ jobs:
           install -D helpers/ci/app/src/main/res/mipmap-xxhdpi/app_launcher.png app/src/main/res/mipmap-xxhdpi/app_launcher.png
           install -D helpers/ci/app/src/main/res/mipmap-xxhdpi/app_launcher_round.png app/src/main/res/mipmap-xxhdpi/app_launcher_round.png
           install -D helpers/ci/app/src/main/res/mipmap-xxxhdpi/app_launcher.png app/src/main/res/mipmap-xxxhdpi/app_launcher.png
-          install -D helpers/ci/app/src/main/res/mipmap-xxxhdpi/app_launcher_round.png app/src/main/res/mipmap-xxxhdpi/app_launcher_round.package_name
+          install -D helpers/ci/app/src/main/res/mipmap-xxxhdpi/app_launcher_round.png app/src/main/res/mipmap-xxxhdpi/app_launcher_round.png
           git status
 
 
